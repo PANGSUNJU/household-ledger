@@ -69,19 +69,33 @@ Supabase **Authentication → URL Configuration** 의 **Site URL** 을 `http://l
 
 ## 소셜 로그인 켜기 (배포 전에 해도 돼요)
 
-### 카카오
-1. https://developers.kakao.com → 내 애플리케이션 → 애플리케이션 추가
-2. **카카오 로그인** 켜기, Redirect URI 에 `https://<프로젝트ID>.supabase.co/auth/v1/callback`
-3. **동의항목**: 닉네임, 프로필 사진
-4. 이메일: 둘 중 하나
-   - 개인 개발자 비즈 앱 전환 후 `카카오계정(이메일)` 동의항목 켜기
-   - 또는 Supabase 카카오 설정에서 **Allow users without an email** 켜기
-5. Supabase **Authentication → Providers → Kakao**: REST API 키(Client ID), 클라이언트 시크릿 입력 후 켜기
+### 먼저 Supabase에서
+- **Authentication → URL Configuration**
+  - **Site URL**: `http://localhost:5173` (기본값 `localhost:3000` 그대로면 로그인 후 3000번으로 가서 안 열려요)
+  - **Redirect URLs**: `http://localhost:5173/**`, 폰 테스트용 `http://<PC 내부 IP>:5173/**`
+- **Sign In / Providers → Kakao·Google** 의 **Callback URL** (`https://<프로젝트ID>.supabase.co/auth/v1/callback`) 을 복사해 둔다
+
+### 카카오 (무료, 로그인 API는 사용량 한도에도 안 잡힘)
+1. https://developers.kakao.com → 앱 만들기
+2. **앱 → 일반**: 앱 아이콘 올리기 → **개인 개발자 비즈 앱 전환** (무료, 사업자 등록 필요 없음. 이메일 동의항목 때문에 필요)
+3. **앱 → 플랫폼 키 → REST API 키** (JavaScript 키 아님)
+   - **카카오 로그인 리다이렉트 URI**: 위 Callback URL
+   - **클라이언트 시크릿** 코드 복사, 사용함 확인
+4. **카카오 로그인 → 일반**: 상태 ON
+5. **카카오 로그인 → 동의항목**: 닉네임(필수), 프로필 사진(선택), 카카오계정 이메일(선택)
+   - Supabase가 이 세 가지를 항상 요청해서, 하나라도 꺼져 있으면 `KOE205`
+6. Supabase **Providers → Kakao**: REST API 키, Client Secret Code 입력, **Allow users without an email** 켜기, Kakao enabled 켜고 **Save**
+   - Client Secret 칸이 비어 있으면 Save가 안 돼서 꺼진 채로 남는다
+
+자주 보는 오류: `KOE004` 로그인 OFF · `KOE006` 리다이렉트 URI 미등록·오타 · `KOE205` 동의항목 꺼짐
 
 ### 구글
-1. Google Cloud Console → OAuth 클라이언트 ID (웹 애플리케이션)
-2. 승인된 리디렉션 URI: `https://<프로젝트ID>.supabase.co/auth/v1/callback`
-3. Supabase **Authentication → Providers → Google** 에 Client ID / Secret 입력
+1. Google Cloud Console → 새 프로젝트 → **Google 인증 플랫폼**
+2. 브랜딩 입력, 대상은 "외부" + **테스트 사용자에 내 Gmail 추가** (혼자 쓰면 테스트 상태 그대로 OK)
+3. 클라이언트 → 웹 애플리케이션
+   - 승인된 자바스크립트 원본: `http://localhost:5173`
+   - 승인된 리디렉션 URI: 위 Callback URL
+4. Supabase **Providers → Google** 에 Client ID / Secret 입력 후 켜고 **Save**
 
 > 카카오와 구글은 서로 다른 가계부로 저장돼요 (계정 묶기 안 함 — SPEC 결정).
 
