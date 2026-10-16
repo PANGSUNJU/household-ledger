@@ -5,6 +5,9 @@ import { initAuth } from './lib/auth'
 import './styles/tokens.css'
 
 // 세션을 먼저 확인해야 첫 화면에서 로그인 여부를 판단할 수 있다
-initAuth().then(() => {
-  createApp(App).use(router).mount('#app')
-})
+// (확인이 실패해도 화면은 띄운다 — 로그인 화면으로 간다)
+initAuth()
+  .catch((e) => console.error('로그인 확인 실패', e))
+  .finally(() => {
+    createApp(App).use(router).mount('#app')
+  })

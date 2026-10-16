@@ -6,7 +6,7 @@
  */
 import { reactive } from 'vue'
 import { parse, format, daysInMonth, weekday, addMonths, addDays, todayKST } from './date'
-import { generateRecurring } from './api'
+import { generateRecurring, isMissingSetup } from './api'
 
 /** 그 달(y, m) 회차의 실제 날짜 'YYYY-MM-DD' */
 export function occurrenceDate(item, y, m) {
@@ -81,10 +81,14 @@ export function runRecurring({ force = false } = {}) {
   if (running) return running
   running = (async () => {
     try {
-      recurringState.made = (await generateRecurring()) || 0
+      // 느린 연결에서 첫 화면이 하염없이 기다리지 않게 8초까지만 기다린다 (기록은 서버에서 계속 진행)
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      recurringState.made = (await Promise.race([generateRecurring(), timeout])) || 0
       recurringState.lastRunDate = today
     } catch (e) {
-      console.warn('고정 항목 자동 기록을 하지 못했어요', e)
+      // SQL(0002) 전이면 오늘은 다시 부르지 않는다
+      if (isMissingSetup(e)) recurringState.lastRunDate = today
+      else console.warn('고정 항목 자동 기록을 하지 못했어요', e)
     } finally {
       recurringState.ready = true
       running = null
@@ -100,9 +104,5 @@ export function resetRecurring() {
   recurringState.made = 0
 }
 
-/** 테이블이 아직 없을 때(0002 SQL 실행 전) Supabase가 주는 오류인지 */
-export function isMissingSetup(e) {
-  const code = e?.code || ''
-  return code === 'PGRST205' || code === 'PGRST202' || code === '42P01' || code === '42883' ||
-    /recurring_items|generate_recurring/.test(e?.message || '') && /not find|does not exist/.test(e?.message || '')
-}
+/** 테이블이 아직 없을 때(0002 SQL 실행 전) Supabase가 주는 오류인지 — api.js 와 같은 것 */
+export { isMissingSetup }

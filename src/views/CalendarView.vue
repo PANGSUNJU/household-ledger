@@ -108,7 +108,7 @@ export default {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
       today, y, m, selected,
       txs: [], loading: false, error: '',
-      items: [], needCount: 0, catColors: {}, remind: null
+      items: [], needCount: 0, catColors: {}, remind: null, reqSeq: 0
     }
   },
   computed: {
@@ -151,6 +151,7 @@ export default {
   methods: {
     won, signed, compact,
     async load() {
+      const seq = ++this.reqSeq   // 빨리 달을 넘기면 늦게 온 앞 달 응답은 버린다
       this.loading = true; this.error = ''
       try {
         // 고정 항목·금액 입력 필요는 0002 SQL 전이면 실패할 수 있어서 따로 (실패해도 캘린더는 보인다)
@@ -160,13 +161,15 @@ export default {
           listNeedsAmount().catch(() => []),
           listCategories({ includeHidden: true }).catch(() => [])
         ])
+        if (seq !== this.reqSeq) return
         this.txs = txs; this.items = items; this.needCount = needs.length
         this.catColors = Object.fromEntries(cats.map((c) => [c.id, c.color]))
       } catch (e) {
+        if (seq !== this.reqSeq) return
         this.error = '기록을 불러오지 못했어요.'
         console.error(e)
       } finally {
-        this.loading = false
+        if (seq === this.reqSeq) this.loading = false
       }
     },
     move(diff) {

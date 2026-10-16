@@ -15,6 +15,15 @@ export const lock = reactive({
 
 let hiddenAt = null
 let listening = false
+let graceUntil = 0
+
+/**
+ * 사진·캡처를 고르러 갤러리에 다녀오는 동안은 잠그지 않는다 (2분까지)
+ * '즉시' 잠금이면 파일을 고르는 순간 화면이 잠겨 버리기 때문
+ */
+export function holdLock(ms = 120000) {
+  graceUntil = Date.now() + ms
+}
 
 export async function initLock() {
   try {
@@ -44,6 +53,7 @@ function onVisibility() {
   } else if (hiddenAt !== null) {
     const away = (Date.now() - hiddenAt) / 1000
     hiddenAt = null
+    if (Date.now() < graceUntil) { graceUntil = 0; return }
     if (away >= lock.timeout) lock.locked = true
   }
 }

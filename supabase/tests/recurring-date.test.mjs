@@ -17,7 +17,7 @@ await build({
     name: 'stub',
     setup(b) {
       b.onResolve({ filter: /^(vue|\.\/api)$/ }, (a) => ({ path: a.path, namespace: 'stub' }))
-      b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const reactive = (x) => x; export const generateRecurring = async () => 0' }))
+      b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const reactive = (x) => x; export const generateRecurring = async () => 0; export const isMissingSetup = () => false' }))
     }
   }]
 })
