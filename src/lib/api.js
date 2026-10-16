@@ -137,3 +137,90 @@ export async function saveTransaction(tx) {
 export async function deleteTransaction(id) {
   return check(await supabase.from('transactions').delete().eq('id', id))
 }
+
+/* ---------- 검색 (내역 화면) ---------- */
+
+/** 가게·메모로 검색, 숫자만 넣으면 금액도 같이 찾기 (최근 200건) */
+export async function searchTransactions(text) {
+  const q = text.trim()
+  const digits = q.replace(/[,\s원]/g, '')
+  // PostgREST or() 문법에 쓰이는 기호는 빼서 안전하게
+  const safe = q.replace(/[(),*%\\]/g, ' ').trim()
+  const conds = []
+  if (safe) conds.push(`store_name.ilike.*${safe}*`, `memo.ilike.*${safe}*`)
+  if (/^\d+$/.test(digits)) conds.push(`amount.eq.${digits}`)
+  if (!conds.length) return []
+  return check(
+    await supabase.from('transactions').select(TX_FIELDS)
+      .or(conds.join(','))
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(200)
+  )
+}
+
+/* ---------- 관리: 결제수단 ---------- */
+
+export async function updatePaymentMethod(id, patch) {
+  return check(await supabase.from('payment_methods').update(patch).eq('id', id).select('*').single())
+}
+
+/* ---------- 관리: 분류 ---------- */
+
+export async function addCategory({ kind, name, color }) {
+  const { data: last } = await supabase.from('categories').select('sort_order')
+    .eq('kind', kind).order('sort_order', { ascending: false }).limit(1)
+  const sort_order = (last?.[0]?.sort_order ?? 0) + 1
+  return check(await supabase.from('categories').insert({ kind, name: name.trim(), color, sort_order }).select('*').single())
+}
+
+export async function updateCategory(id, patch) {
+  return check(await supabase.from('categories').update(patch).eq('id', id).select('*').single())
+}
+
+/* ---------- 관리: 자주 쓰는 내역 ---------- */
+
+export async function addQuickEntry({ name, amount, category_id, payment_method_id }) {
+  const { data: last } = await supabase.from('quick_entries').select('sort_order').order('sort_order', { ascending: false }).limit(1)
+  const sort_order = (last?.[0]?.sort_order ?? 0) + 1
+  return check(await supabase.from('quick_entries')
+    .insert({ name: name.trim(), amount, category_id: category_id || null, payment_method_id: payment_method_id || null, sort_order })
+    .select('*').single())
+}
+
+export async function updateQuickEntry(id, patch) {
+  return check(await supabase.from('quick_entries').update(patch).eq('id', id).select('*').single())
+}
+
+export async function deleteQuickEntry(id) {
+  return check(await supabase.from('quick_entries').delete().eq('id', id))
+}
+
+/** 순서 바꾸기: 목록 전체의 sort_order 를 다시 매긴다 (table: 'payment_methods' | 'categories' | 'quick_entries') */
+export async function saveOrder(table, ids) {
+  await Promise.all(ids.map((id, i) =>
+    supabase.from(table).update({ sort_order: i + 1 }).eq('id', id).then(check)))
+}
+
+/* ---------- 설정: 화면 잠금 ---------- */
+
+export async function getSettings() {
+  const { data, error } = await supabase.from('user_settings').select('lock_enabled, lock_timeout').maybeSingle()
+  if (error) throw error
+  return data || { lock_enabled: false, lock_timeout: 0 }
+}
+
+export async function setLockPin(pin) {
+  return check(await supabase.rpc('set_lock_pin', { pin }))
+}
+
+export async function verifyLockPin(pin) {
+  return check(await supabase.rpc('verify_lock_pin', { pin }))
+}
+
+export async function disableLock() {
+  return check(await supabase.rpc('disable_lock'))
+}
+
+export async function setLockTimeout(seconds) {
+  return check(await supabase.from('user_settings').update({ lock_timeout: seconds }).not('user_id', 'is', null))
+}
