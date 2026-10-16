@@ -1,0 +1,42 @@
+/* 결제수단·분류·자주 쓰는 내역 관리 화면 공통 */
+.manage { min-height: 100dvh; }
+.body { padding: 4px 16px 32px 16px; display: flex; flex-direction: column; gap: 12px; }
+.intro { margin: 0; font-size: 13px; line-height: 19px; color: var(--text-sub); }
+.error { margin: 0; font-size: 13px; color: var(--expense); }
+.small { font-size: 12px; }
+.muted { color: var(--text-sub); }
+.add-btn {
+  height: 36px; padding: 0 12px; border: 0; border-radius: var(--radius);
+  background: var(--primary); color: var(--on-primary); font-size: 13px; font-weight: 600;
+}
+.badge { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; flex-shrink: 0; }
+.badge.cash { background: #FFF1C7; color: #5E4710; }
+.badge.card { background: #FFE6DA; color: #8E3F33; }
+.badge.transfer { background: var(--info-bg); color: var(--info-fg); }
+.mini {
+  height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
+  background: var(--surface-sunken); color: #5A4E48; font-size: 12px; white-space: nowrap;
+}
+.mini.danger { color: var(--expense); }
+.hidden-toggle {
+  min-height: 48px; padding: 0 16px; border: 0; border-radius: var(--radius-md);
+  background: var(--surface-sunken); color: #5A4E48; font-size: 14px; text-align: left;
+}
+.swatch { width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0; }
+.tag { font-size: 12px; color: #2A5E5A; white-space: nowrap; }
+.tag.lock { color: var(--info-fg); }
+.notice { background: var(--info-bg); color: var(--info-fg); border-radius: 12px; padding: 10px 12px; font-size: 12px; line-height: 18px; }
+
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--surface-sunken); border-radius: 12px; padding: 4px; }
+.seg button { height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--text-sub); font-size: 15px; }
+.seg button.on { background: var(--surface); color: var(--text); font-weight: 700; box-shadow: 0 1px 3px rgba(120, 90, 70, 0.14); }
+
+.sheet-form { display: flex; flex-direction: column; gap: 10px; }
+.lbl { font-size: 13px; color: var(--text-sub); }
+.box {
+  height: 48px; width: 100%; border: 1px solid var(--border); border-radius: 12px;
+  padding: 0 14px; font-size: 16px; background: var(--surface);
+}
+.palette { display: flex; flex-wrap: wrap; gap: 10px; }
+.palette button { width: 36px; height: 36px; border-radius: 10px; border: 2px solid transparent; }
+.palette button.on { border-color: #3A3330; }
