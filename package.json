@@ -7,10 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:db": "node supabase/tests/db-rules.test.mjs supabase/migrations/0001_init.sql supabase/migrations/0002_recurring.sql && node supabase/tests/recurring-date.test.mjs"
+    "test:db": "node supabase/tests/db-rules.test.mjs supabase/migrations/0001_init.sql supabase/migrations/0002_recurring.sql supabase/migrations/0003_budget_store_remind.sql && node supabase/tests/recurring-date.test.mjs",
+    "postinstall": "node scripts/copy-ocr-assets.mjs",
+    "predev": "node scripts/copy-ocr-assets.mjs",
+    "prebuild": "node scripts/copy-ocr-assets.mjs",
+    "test:ocr": "node scripts/copy-ocr-assets.mjs && node tests/ocr/ocr.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.75.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/kor": "1.0.0",
+    "tesseract.js": "7.0.0",
     "vue": "^3.5.0",
     "vue-router": "^4.5.0"
   },

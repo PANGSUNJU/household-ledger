@@ -7,3 +7,6 @@ dist
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# 이미지 글자 읽기 파일 (npm install 때 자동 복사)
+public/ocr/

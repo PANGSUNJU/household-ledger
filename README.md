@@ -6,7 +6,7 @@
 - 디자인: 디자인 캔버스 "가계부 화면 구상" → **기본 + 파스텔 색** 페이지
 - 요구사항·결정 기록: `docs/` (SPEC.md, PROJECT-BRIEF.md, adr/)
 
-## 지금 상태: ① 최소 버전의 뼈대
+## 지금 상태: ①~④ 기능 모두 들어감 (배포 전)
 
 | 구분 | 상태 |
 |---|---|
@@ -25,8 +25,12 @@
 | ② 고정 수입·지출 (매달 며칠, 주말이면 앞/뒤 평일, 금액 고정/매달 다름, 앱 열 때 자동 기록, 그만하기·다시 시작) | ✅ — SQL `0002` 실행 필요 |
 | ② 금액 입력 필요 모아보기, 캘린더 '예정'·'입력 필요' 표시 | ✅ |
 | ② 고정비 달마다 보기 (최근 6·12개월, 항목별 지난달 대비) | ✅ |
-| ② 예산, 통계 기간 선택, CSV 내보내기 | ⬜ 다음 |
-| 캡처로 입력 (카드 앱 화면 분석) | ⬜ ③ 단계 |
+| ② 한 달 예산 (남은 돈·하루 쓸 수 있는 돈, 지난 예산 이어 쓰기) | ✅ — SQL `0003` 실행 필요 |
+| ② 통계 기간 선택 (이번 달/지난달/최근 30일/직접), CSV 내보내기 (엑셀 한글 OK) | ✅ |
+| ③ 캡처·영수증 읽기 (기기 안에서 읽음, 여러 건 나누기, 취소 건 구분, 중복 알림, 가게 이름 기억, 분류 짐작) | ✅ — 실제 카드 앱 캡처로 맞춰 보기 필요 |
+| ③ 취소·환불 영수증으로 원래 구매 찾기 | ✅ |
+| ④ 주간 정리 알림 (앱 안 안내 + 폰 캘린더 반복 알림) | ✅ |
+| ④ 홈 화면 추가(PWA), 배포 설정 파일·안내 (`docs/DEPLOY.md`) | ✅ — 배포는 팡이가 가입 후 |
 
 ---
 
@@ -48,6 +52,7 @@ npm install
 3. `supabase/migrations/0001_init.sql` 내용을 전부 붙여넣고 **Run**
    - "Success. No rows returned" 가 나오면 성공
 4. **New query** 로 새 창을 열고 `supabase/migrations/0002_recurring.sql` 도 같은 방법으로 **Run** (고정 수입·지출)
+5. 같은 방법으로 `supabase/migrations/0003_budget_store_remind.sql` 도 **Run** (예산·가게 이름 기억·주간 알림)
    - 파일은 번호 순서대로 한 번씩만 실행해요. 이미 실행한 파일을 다시 돌리면 "already exists" 오류가 나요.
 
 ### 4. 연결 정보 넣기
@@ -114,6 +119,9 @@ Supabase **Authentication → URL Configuration** 의 **Site URL** 을 `http://l
 | `npm run dev` | 개발 서버 |
 | `npm run build` | 배포용 빌드 (`dist/`) |
 | `npm run test:db` | DB 규칙 테스트 (인터넷 없이 내 컴퓨터에서 실행) |
+| `npm run test:ocr` | 이미지 읽기 시험 (`tests/ocr/fixtures` 의 캡처·영수증을 읽고 결과 확인) |
+
+배포는 `docs/DEPLOY.md` 를 보세요.
 
 `test:db` 가 확인하는 것: 기본값 자동 생성, 다른 사람 데이터 차단, 환불 연결 시 분류 자동 지정, 환불 분류 보호, 잠금 비밀번호(원래 숫자 저장 안 함), 고정 항목 자동 기록(주말 규칙, 같은 회차 한 번만, 미래 회차 안 만듦) 등 51개 + 고정 항목 날짜 규칙이 앱과 DB에서 같은지 1,488가지.
 
@@ -132,12 +140,19 @@ src/
     money.js           금액 표시, 금액 칸 계산기 (36000/3)
     stats.js           통계 계산 (환불 차감, 저축/투자 분리)
     recurring.js       고정 항목 날짜 규칙(DB와 같음), 예정 계산, 앱 열 때 자동 기록
+    ocr.js             이미지 글자 읽기 (tesseract.js, 기기 안에서만)
+    ocr-parse.js       읽은 글자 → 기록 후보 (캡처 여러 건 / 영수증)
+    remind.js          주간 정리 알림 (앱 안 안내, 캘린더 .ics)
+    csv.js             CSV 만들기
   components/          하단 메뉴, 화면 머리, 아이콘, 인터넷 끊김 안내
   views/               화면별 파일
   router/index.js      화면 주소, 로그인 확인
 supabase/
   migrations/0001_init.sql   DB 표·보안 규칙·기본값
   migrations/0002_recurring.sql  고정 항목 표·자동 기록 함수
+  migrations/0003_budget_store_remind.sql  예산·가게 이름 짝·알림 설정
+tests/ocr/             이미지 읽기 시험 (가짜 캡처·영수증, 실제 캡처를 넣어 늘리면 됨)
+scripts/copy-ocr-assets.mjs  글자 읽기 파일을 public/ocr 로 복사 (설치·빌드 때 자동)
   tests/db-rules.test.mjs    DB 규칙 테스트
 docs/                  SPEC, 브리프, 결정 기록
 ```

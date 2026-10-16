@@ -2,15 +2,29 @@
   <main class="page stats">
     <header class="head">
       <h1 class="page-title">통계</h1>
-      <span class="range">이번 달 · {{ rangeLabel }}</span>
+      <span class="range">{{ rangeLabel }}</span>
     </header>
+
+    <!-- 기간 빠른 선택 (항상 '이번 달'로 열린다) -->
+    <div class="periods" role="radiogroup" aria-label="기간">
+      <button
+        v-for="p in PERIODS" :key="p.v" type="button" role="radio"
+        :aria-checked="period === p.v" :class="{ on: period === p.v }" @click="choose(p.v)"
+      >{{ p.t }}</button>
+    </div>
+    <form v-if="period === 'custom'" class="custom" @submit.prevent="applyCustom">
+      <input v-model="custom.from" type="date" aria-label="시작 날짜" :max="today">
+      <span>~</span>
+      <input v-model="custom.to" type="date" aria-label="끝 날짜" :max="today">
+      <button type="submit" :disabled="!custom.from || !custom.to">보기</button>
+    </form>
 
     <p v-if="loading" class="muted">불러오는 중…</p>
     <p v-else-if="error" class="error">{{ error }}</p>
 
     <template v-else>
       <section class="card summary" aria-label="이번 달 요약">
-        <span class="muted small">이번 달 쓴 돈 <span class="tiny">(환불 반영)</span></span>
+        <span class="muted small">{{ periodName }} 쓴 돈 <span class="tiny">(환불 반영)</span></span>
         <strong class="big">{{ won(now.spent) }}원</strong>
         <span v-if="diffText" class="badge" :class="diff > 0 ? 'up' : 'down'">{{ diffText }}</span>
         <div class="lines">
@@ -18,6 +32,8 @@
           <div v-if="now.savings"><span class="muted">저축/투자</span><strong class="savings">{{ won(now.savings) }}원</strong></div>
         </div>
       </section>
+
+      <BudgetCard v-if="period === 'this'" :y="thisY" :m="thisM" :spent="now.spent" />
 
       <div class="tabs" role="tablist" aria-label="보는 기준">
         <button
@@ -27,7 +43,7 @@
       </div>
 
       <section class="card bars" :aria-label="tabLabel + ' 지출'">
-        <p v-if="!rows.length" class="muted empty">이번 달 지출 기록이 아직 없어요.</p>
+        <p v-if="!rows.length" class="muted empty">이 기간 지출 기록이 없어요.</p>
         <div v-for="r in shownRows" :key="r.key" class="bar-row">
           <div class="bar-top">
             <span class="name">{{ r.name }}</span>
@@ -56,36 +72,40 @@
 <script>
 import AppIcon from '@/components/AppIcon.vue'
 import { listTransactions, listCategories } from '@/lib/api'
-import { thisMonthRange, sameRangeLastMonth, parse } from '@/lib/date'
+import BudgetCard from '@/components/BudgetCard.vue'
+import { statsRange, rangeText, todayKST, parse, addDays } from '@/lib/date'
 import { won } from '@/lib/money'
 import { summarize } from '@/lib/stats'
 
 /*
  * 통계 (SPEC 5-3): 항상 '이번 달(1일~오늘)'로 열린다.
  * 지난달 대비는 지난달 같은 기간(1일~같은 날)과 비교한다. (SPEC 10-A)
- * 기간 직접 고르기는 ② 단계.
+ * 기간 빠른 선택: 이번 달 / 지난달 / 최근 30일 / 직접 선택 (SPEC 5-3). 지난번 선택은 기억하지 않는다.
  */
 export default {
   name: 'StatsView',
-  components: { AppIcon },
+  components: { AppIcon, BudgetCard },
   data() {
     return {
       TABS: [{ v: 'byCategory', t: '분류별' }, { v: 'byStore', t: '가게별' }, { v: 'byMethod', t: '결제수단별' }],
       tab: 'byCategory', showAll: false,
-      range: thisMonthRange(), now: null, prev: null, categories: [],
+      PERIODS: [{ v: 'this', t: '이번 달' }, { v: 'last', t: '지난달' }, { v: 'd30', t: '최근 30일' }, { v: 'custom', t: '직접 선택' }],
+      period: 'this', today: todayKST(),
+      thisY: parse(todayKST()).y, thisM: parse(todayKST()).m,
+      custom: { from: addDays(todayKST(), -6), to: todayKST() },
+      range: statsRange('this'), now: null, prev: null, categories: [],
       loading: true, error: ''
     }
   },
   computed: {
-    rangeLabel() {
-      const a = parse(this.range.from), b = parse(this.range.to)
-      return `${a.m}월 ${a.d}일~${b.d}일`
-    },
+    rangeLabel() { return rangeText(this.range.from, this.range.to) },
+    periodName() { return { this: '이번 달', last: '지난달', d30: '최근 30일', custom: '이 기간' }[this.period] },
     tabLabel() { return { byCategory: '분류', byStore: '가게', byMethod: '결제수단' }[this.tab] },
     diff() { return this.now && this.prev ? this.now.spent - this.prev.spent : 0 },
     diffText() {
-      if (!this.prev || !this.diff) return this.prev && this.now.spent ? '지난달 같은 기간과 같아요' : ''
-      return `지난달 같은 기간보다 ${won(Math.abs(this.diff))}원 ${this.diff > 0 ? '더 썼어요 ▲' : '덜 썼어요 ▼'}`
+      const label = this.range.cmpLabel
+      if (!this.prev || !this.diff) return this.prev && this.now.spent ? `${label}과 같아요` : ''
+      return `${label}보다 ${won(Math.abs(this.diff))}원 ${this.diff > 0 ? '더 썼어요 ▲' : '덜 썼어요 ▼'}`
     },
     catMap() { return Object.fromEntries(this.categories.map((c) => [c.id, c])) },
     rows() {
@@ -113,10 +133,23 @@ export default {
   created() { this.load() },
   methods: {
     won,
+    choose(v) {
+      this.period = v
+      if (v === 'custom') return   // '보기'를 누르면 바뀐다
+      this.range = statsRange(v)
+      this.showAll = false
+      this.load()
+    },
+    applyCustom() {
+      this.range = statsRange('custom', this.custom)
+      this.custom = { from: this.range.from, to: this.range.to }
+      this.showAll = false
+      this.load()
+    },
     async load() {
       this.loading = true; this.error = ''
       try {
-        const last = sameRangeLastMonth(this.range.from, this.range.to)
+        const last = this.range.cmp
         const [cur, prev, cats] = await Promise.all([
           listTransactions(this.range.from, this.range.to),
           listTransactions(last.from, last.to),
@@ -171,4 +204,10 @@ export default {
 .fl-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .fl-main strong { font-size: 15px; }
 .chev { color: #B8A69C; }
+.periods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.periods button { height: 36px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 13px; color: var(--text-sub); }
+.periods button.on { border-color: #E8806A; background: #FFE6DA; color: #8E3F33; font-weight: 600; }
+.custom { display: flex; align-items: center; gap: 6px; }
+.custom input { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 14px; background: var(--surface); }
+.custom button { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--primary); color: var(--on-primary); font-weight: 600; }
 </style>
