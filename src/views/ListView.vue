@@ -51,7 +51,7 @@ export default {
     const { y, m } = parse(todayKST())
     return {
       FILTERS: [{ v: 'all', t: '전체' }, { v: 'expense', t: '지출' }, { v: 'income', t: '수입' }],
-      y, m, query: '', filter: 'all', txs: [], loading: false, error: '', timer: null
+      y, m, query: '', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
     }
   },
   computed: {
@@ -89,14 +89,17 @@ export default {
   beforeUnmount() { clearTimeout(this.timer) },
   methods: {
     async load() {
+      const seq = ++this.reqSeq   // 검색어를 빨리 바꾸면 늦게 온 앞 검색 결과는 버린다
       this.loading = true; this.error = ''
       try {
-        this.txs = this.searching ? await searchTransactions(this.query) : await listMonth(this.y, this.m)
+        const rows = this.searching ? await searchTransactions(this.query) : await listMonth(this.y, this.m)
+        if (seq === this.reqSeq) this.txs = rows
       } catch (e) {
+        if (seq !== this.reqSeq) return
         this.error = '기록을 불러오지 못했어요.'
         console.error(e)
       } finally {
-        this.loading = false
+        if (seq === this.reqSeq) this.loading = false
       }
     },
     onSearch() {

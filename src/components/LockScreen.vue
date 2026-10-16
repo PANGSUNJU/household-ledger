@@ -12,7 +12,7 @@ import AppIcon from './AppIcon.vue'
 import PinPad from './PinPad.vue'
 import { verifyLockPin } from '@/lib/api'
 import { lock } from '@/lib/lock'
-import { signOut } from '@/lib/auth'
+import { signOut, auth } from '@/lib/auth'
 
 export default {
   name: 'LockScreen',
@@ -39,6 +39,7 @@ export default {
     /* 잊었으면 로그아웃 → 다시 로그인한 뒤 설정에서 잠금을 껐다 켜서 새로 정한다 */
     async forgot() {
       await signOut()
+      if (auth.user) { this.error = '로그아웃하지 못했어요. 다시 눌러 주세요.'; return }
       lock.locked = false
       this.$router.replace({ name: 'login' })
     }

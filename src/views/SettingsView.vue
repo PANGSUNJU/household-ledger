@@ -69,7 +69,7 @@
           </div>
           <label class="time-row">
             <span>시간</span>
-            <input type="time" :value="remind.remind_time.slice(0, 5)" step="600" @change="saveRemind({ remind_time: $event.target.value })">
+            <input type="time" :value="remind.remind_time.slice(0, 5)" step="600" @change="$event.target.value ? saveRemind({ remind_time: $event.target.value }) : ($event.target.value = remind.remind_time.slice(0, 5))">
           </label>
           <p class="muted small">앱은 서버 없이 0원으로 운영돼서 직접 알림을 보내지 못해요. 대신 정한 시간이 지나 앱을 열면 안내가 뜨고, 아래로 <b>폰 캘린더에 매주 알림</b>을 넣어 두면 폰이 알려줘요.</p>
           <div class="cal-btns">

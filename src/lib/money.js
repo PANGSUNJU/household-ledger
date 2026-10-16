@@ -18,11 +18,20 @@ export function signed(n, kind) {
   return (kind === 'income' ? '+' : '-') + won(Math.abs(n))
 }
 
+/** 금액 최댓값 10억 원 (DB 금액 칸은 약 21억까지라 넘으면 저장 오류가 난다) */
+export const MAX_AMOUNT = 1000000000
+
+/** 금액이 너무 큰지 (화면 안내용) */
+export function tooBig(input) {
+  const n = Number(String(input ?? '').replace(/[,\s원]/g, ''))
+  return Number.isFinite(n) && n > MAX_AMOUNT
+}
+
 /**
  * 금액 칸 계산기 (SPEC 10-A)
  * '36000/3' → 12000, '4500+3200' → 7700, '12,300' → 12300
  * 숫자와 + - * / ( ) 만 허용한다. 계산할 수 없으면 null.
- * eval 을 쓰지 않고 직접 계산한다.
+ * eval 을 쓰지 않고 직접 계산한다. 10억 원이 넘으면 null.
  */
 export function calcAmount(input) {
   if (typeof input !== 'string') return null
@@ -73,7 +82,8 @@ export function calcAmount(input) {
   try {
     const v = expr()
     if (i !== src.length || !Number.isFinite(v)) return null
-    return Math.round(v)
+    const n = Math.round(v)
+    return Math.abs(n) > MAX_AMOUNT ? null : n
   } catch {
     return null
   }

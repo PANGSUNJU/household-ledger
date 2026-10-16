@@ -50,7 +50,7 @@ export default {
   data() {
     return {
       busy: false,
-      error: '',
+      error: auth.returnError || '',
       email: '',
       sent: false,
       last: lastProvider(),

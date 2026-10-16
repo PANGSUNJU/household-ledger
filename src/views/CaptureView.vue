@@ -17,7 +17,7 @@
         <label class="pick">
           <AppIcon name="image" :size="22" />
           <span>{{ mode === 'capture' ? '캡처 고르기 (여러 장 가능)' : '영수증 사진 고르기' }}</span>
-          <input ref="file" type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @change="onFiles">
+          <input ref="file" type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @click="holdLock()" @change="onFiles">
         </label>
         <p class="safe">이미지는 이 기기 안에서만 읽고 서버에 올리거나 저장하지 않아요. 카드번호·카드사는 읽지 않아요.</p>
       </div>
@@ -90,6 +90,7 @@
           </div>
           <p v-if="it.memo && it.checked" class="memo muted small">{{ it.memo }}</p>
 
+          <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">금액이 너무 커요. 금액을 고쳐 주세요 (10억 원까지)</p>
           <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·가게 기록이 이미 있어요</p>
           <div v-if="it.kind === 'cancel'" class="info">
             <span>취소 건이라 빼뒀어요</span>
@@ -113,7 +114,7 @@
       <label v-if="groups.length && !reading" class="pick more-pick">
         <AppIcon name="plus" :size="18" />
         <span>{{ mode === 'capture' ? '캡처 더 올리기' : '영수증 더 올리기' }}</span>
-        <input type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @change="onFiles">
+        <input type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @click="holdLock()" @change="onFiles">
       </label>
     </div>
 
@@ -134,9 +135,10 @@ import {
   listStoreAliases, saveStoreAliases, findSameTransactions, saveTransactions
 } from '@/lib/api'
 import { readImage, closeReader } from '@/lib/ocr'
+import { holdLock } from '@/lib/lock'
 import { parseCapture, parseReceipt, guessCategoryName } from '@/lib/ocr-parse'
 import { todayKST, label, addDays } from '@/lib/date'
-import { won } from '@/lib/money'
+import { won, MAX_AMOUNT } from '@/lib/money'
 
 let seq = 0
 
@@ -157,13 +159,13 @@ export default {
       mode: this.$route.query.mode === 'receipt' ? 'receipt' : 'capture',
       groups: [], categories: [], methods: [], aliases: {}, defaultPm: null,
       reading: false, readingText: '', firstLoad: true, error: '',
-      saving: false, saveError: ''
+      saving: false, saveError: '', MAX_AMOUNT
     }
   },
   computed: {
     toSave() {
       return this.groups.flatMap((g) => g.items
-        .filter((it) => it.checked && it.kind !== 'cancel' && it.amount > 0 && it.date)
+        .filter((it) => it.checked && it.kind !== 'cancel' && it.amount > 0 && it.amount <= MAX_AMOUNT && it.date)
         .map((it) => ({ it, g })))
     }
   },
@@ -185,7 +187,7 @@ export default {
     closeReader()
   },
   methods: {
-    won, label,
+    won, label, holdLock,
     catsFor(it) { return this.categories.filter((c) => c.kind === (it.kind === 'income' ? 'income' : 'expense') && !c.is_refund) },
     visibleCats(it) {
       const all = this.catsFor(it)

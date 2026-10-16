@@ -7,6 +7,8 @@ const LAST_PROVIDER_KEY = 'ledger.lastProvider'
 export const auth = reactive({
   ready: false,      // 처음 세션 확인이 끝났는지
   session: null,
+  /** 카카오·구글에서 돌아올 때 생긴 오류 (예: 동의 취소) — 로그인 화면에 보여준다 */
+  returnError: '',
   get user() { return this.session?.user ?? null },
   /** 지금 로그인 방식: 'kakao' | 'google' | 'email' */
   get provider() { return this.user?.app_metadata?.provider ?? null }
@@ -14,8 +16,16 @@ export const auth = reactive({
 
 export async function initAuth() {
   if (!isConfigured) { auth.ready = true; return }
-  const { data } = await supabase.auth.getSession()
-  auth.session = data.session
+  auth.returnError = readReturnError()
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+    auth.session = data.session
+  } catch (e) {
+    console.warn('로그인 상태를 확인하지 못했어요', e)
+    auth.session = null
+    if (!auth.returnError) auth.returnError = '로그인 상태를 확인하지 못했어요. 다시 로그인해 주세요.'
+  }
   auth.ready = true
   supabase.auth.onAuthStateChange((_event, session) => {
     auth.session = session
@@ -70,8 +80,35 @@ export async function signInWithEmail(email) {
   if (error) throw error
 }
 
+/**
+ * 로그아웃: 이 기기의 로그인 정보는 인터넷이 불안해도 반드시 지운다 (scope: local)
+ * (서버 응답 실패로 로그인 정보가 남으면 잠금 화면 '비밀번호를 잊었어요'가 잠금을 풀어 버릴 수 있다)
+ */
 export async function signOut() {
-  await supabase.auth.signOut()
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    if (error) console.warn('로그아웃 중 오류', error)
+  } catch (e) {
+    console.warn('로그아웃 중 오류', e)
+  }
+  auth.session = null
+}
+
+/** 카카오·구글이 돌려준 오류(주소 뒤 error_description)를 읽고 주소에서 지운다 */
+function readReturnError() {
+  try {
+    const hash = new URLSearchParams(window.location.hash.slice(1))
+    const q = new URLSearchParams(window.location.search)
+    const desc = hash.get('error_description') || q.get('error_description') || ''
+    const code = hash.get('error') || q.get('error') || ''
+    if (!desc && !code) return ''
+    window.history.replaceState(null, '', window.location.pathname)
+    if (/access_denied|cancel/i.test(code + desc)) return '로그인을 취소했어요.'
+    if (/email/i.test(desc)) return '카카오에서 이메일을 받지 못해 로그인하지 못했어요. Supabase 카카오 설정의 "Allow users without an email"을 켜 주세요.'
+    return `로그인하지 못했어요. (${(desc || code).slice(0, 80)})`
+  } catch {
+    return ''
+  }
 }
 
 /** "지난번에 카카오로 로그인했어요" 표시용 (이 기기에만 저장) */

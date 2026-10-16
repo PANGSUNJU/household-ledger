@@ -28,8 +28,28 @@ function getWorker() {
  * 사진·캡처를 읽기 좋게: 사진 방향 바로잡기 + 너무 크면 줄이기 (긴 변 2400px)
  * 길게 이어 찍은 캡처는 폭만 맞춘다
  */
+/** 이미지 파일 열기: 사진 방향 옵션 → 옵션 없이 → <img> 순서로 시도 */
+async function decode(file) {
+  if (typeof createImageBitmap === 'function') {
+    try { return await createImageBitmap(file, { imageOrientation: 'from-image' }) } catch { /* 다음 방법 */ }
+    try { return await createImageBitmap(file) } catch { /* 다음 방법 */ }
+  }
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = url
+    await img.decode()
+    return img
+  } catch {
+    throw new Error('이 이미지 형식은 열 수 없어요. 캡처(PNG·JPG)로 다시 올려 주세요.')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 async function prepare(file) {
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
+  const bmp = await decode(file)
   const MAX_W = 1600, MAX_SIDE = 6000
   let scale = Math.min(1, MAX_W / bmp.width, MAX_SIDE / bmp.height)
   if (bmp.width < 700) scale = Math.min(2, 1000 / bmp.width)   // 작은 이미지는 키워야 잘 읽힌다
@@ -39,7 +59,7 @@ async function prepare(file) {
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
   ctx.drawImage(bmp, 0, 0, w, h)
-  bmp.close?.()
+  bmp.close?.()   // <img> 에는 close 가 없다
   return canvas
 }
 

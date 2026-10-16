@@ -4,11 +4,40 @@
  */
 import { supabase } from './supabase'
 import { format, daysInMonth } from './date'
+import { MAX_AMOUNT } from './money'
 
 function check({ data, error }) {
   if (error) throw error
   return data
 }
+
+/**
+ * 아직 실행하지 않은 SQL(0002, 0003) 때문에 표·칸·함수가 없을 때 Supabase가 주는 오류인지
+ *  PGRST205 표 없음 / PGRST202 함수 없음 / 42P01 표 없음 / 42883 함수 없음 / 42703 칸 없음
+ */
+export function isMissingSetup(e) {
+  const code = e?.code || ''
+  if (['PGRST205', 'PGRST202', '42P01', '42883', '42703'].includes(code)) return true
+  return /(recurring_items|recurring_item_id|recurring_month|generate_recurring|budgets|store_aliases|remind_)/.test(e?.message || '') &&
+    /(not find|does not exist|schema cache)/i.test(e?.message || '')
+}
+
+/*
+ * 한 번 '없음'을 확인한 기능은 이번 실행 동안 다시 묻지 않는다
+ * (SQL 실행 전이면 화면을 열 때마다 빨간 오류 요청이 쌓이지 않게. 앱을 새로 열면 다시 확인)
+ */
+const missing = { recurring: null, v3: null }
+async function guarded(feature, fn) {
+  if (missing[feature]) throw missing[feature]
+  try {
+    return await fn()
+  } catch (e) {
+    if (isMissingSetup(e)) missing[feature] = e
+    throw e
+  }
+}
+
+// 금액 최댓값은 money.js 와 같은 값 (10억 원)
 
 /* ---------- 분류 ---------- */
 
@@ -163,7 +192,8 @@ export async function searchTransactions(text) {
   const safe = q.replace(/[(),*%\\]/g, ' ').trim()
   const conds = []
   if (safe) conds.push(`store_name.ilike.*${safe}*`, `memo.ilike.*${safe}*`)
-  if (/^\d+$/.test(digits)) conds.push(`amount.eq.${digits}`)
+  // 카드번호처럼 긴 숫자는 금액 칸(int) 범위를 넘어 오류가 나므로 금액 검색에서 뺀다
+  if (/^\d{1,10}$/.test(digits) && Number(digits) <= MAX_AMOUNT) conds.push(`amount.eq.${digits}`)
   if (!conds.length) return []
   return check(
     await supabase.from('transactions').select(TX_FIELDS)
@@ -250,7 +280,8 @@ const FIXED_FIELDS = `
 `
 
 export async function listRecurringItems() {
-  return check(await supabase.from('recurring_items').select('*').order('kind').order('sort_order').order('created_at'))
+  return guarded('recurring', async () =>
+    check(await supabase.from('recurring_items').select('*').order('kind').order('sort_order').order('created_at')))
 }
 
 export async function addRecurringItem(row) {
@@ -270,7 +301,7 @@ export async function deleteRecurringItem(id) {
 
 /** 날짜가 된 고정 항목 회차를 기록으로 만든다 (앱을 열 때). 새로 만든 수를 돌려준다 */
 export async function generateRecurring() {
-  return check(await supabase.rpc('generate_recurring'))
+  return guarded('recurring', async () => check(await supabase.rpc('generate_recurring')))
 }
 
 /** '금액 입력 필요' 기록 (오래된 것부터) */
@@ -285,23 +316,23 @@ export async function listNeedsAmount() {
 
 /** 고정 항목에서 만들어진 기록 (회차 기준 fromMonth~toMonth, 'YYYY-MM-01') */
 export async function listFixedTransactions(fromMonth, toMonth) {
-  return check(
+  return guarded('recurring', async () => check(
     await supabase.from('transactions').select(FIXED_FIELDS)
       .eq('source', 'recurring')
       .gte('recurring_month', fromMonth)
       .lte('recurring_month', toMonth)
       .order('recurring_month', { ascending: true })
-  )
+  ))
 }
 
 /* ---------- 예산 (②, 0003 SQL) ---------- */
 
 /** 그 달 예산. 없으면 그 전 가장 최근 예산을 기본값으로 (SPEC 5-5) → { amount, month, inherited } | null */
 export async function getBudget(month01) {
-  const rows = check(
+  const rows = await guarded('v3', async () => check(
     await supabase.from('budgets').select('month, amount')
       .lte('month', month01).order('month', { ascending: false }).limit(1)
-  )
+  ))
   const b = rows[0]
   if (!b) return null
   return { amount: b.amount, month: b.month, inherited: b.month !== month01 }
@@ -321,16 +352,23 @@ export async function deleteBudget(month01) {
 
 /** { '읽힌 이름': '고친 이름' } — 표가 없으면(SQL 전) 빈 짝 */
 export async function listStoreAliases() {
-  const { data, error } = await supabase.from('store_aliases').select('raw_name, display_name').limit(2000)
-  if (error) { console.warn('가게 이름 짝을 불러오지 못했어요', error); return {} }
-  return Object.fromEntries(data.map((r) => [r.raw_name, r.display_name]))
+  try {
+    const data = await guarded('v3', async () =>
+      check(await supabase.from('store_aliases').select('raw_name, display_name').limit(2000)))
+    return Object.fromEntries(data.map((r) => [r.raw_name, r.display_name]))
+  } catch (e) {
+    if (!isMissingSetup(e)) console.warn('가게 이름 짝을 불러오지 못했어요', e)
+    return {}
+  }
 }
 
 export async function saveStoreAliases(pairs) {
   const rows = pairs.filter((p) => p.raw_name && p.display_name && p.raw_name !== p.display_name)
     .map((p) => ({ raw_name: p.raw_name.slice(0, 80), display_name: p.display_name.slice(0, 50) }))
-  if (!rows.length) return
-  check(await supabase.from('store_aliases').upsert(rows, { onConflict: 'user_id,raw_name' }))
+  // 같은 읽힌 이름이 한 번에 두 번 들어가면 DB가 거부하므로 마지막 것만 남긴다
+  const unique = [...new Map(rows.map((r) => [r.raw_name, r])).values()]
+  if (!unique.length || missing.v3) return
+  check(await supabase.from('store_aliases').upsert(unique, { onConflict: 'user_id,raw_name' }))
 }
 
 /** 같은 날짜·금액·가게 기록이 있는지 (중복 알림) → 겹치는 기록 목록 */
@@ -356,10 +394,14 @@ export async function saveTransactions(list) {
 
 /** 알림 설정. 표에 칸이 없으면(SQL 전) null */
 export async function getRemindSettings() {
-  const { data, error } = await supabase.from('user_settings')
-    .select('remind_enabled, remind_weekday, remind_time, remind_done_on').maybeSingle()
-  if (error) { console.warn('알림 설정을 불러오지 못했어요', error); return null }
-  return data || { remind_enabled: false, remind_weekday: 0, remind_time: '21:00:00', remind_done_on: null }
+  try {
+    const data = await guarded('v3', async () => check(await supabase.from('user_settings')
+      .select('remind_enabled, remind_weekday, remind_time, remind_done_on').maybeSingle()))
+    return data || { remind_enabled: false, remind_weekday: 0, remind_time: '21:00:00', remind_done_on: null }
+  } catch (e) {
+    if (!isMissingSetup(e)) console.warn('알림 설정을 불러오지 못했어요', e)
+    return null
+  }
 }
 
 export async function saveRemindSettings(patch) {

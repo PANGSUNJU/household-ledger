@@ -93,7 +93,7 @@ export default {
       period: 'this', today: todayKST(),
       thisY: parse(todayKST()).y, thisM: parse(todayKST()).m,
       custom: { from: addDays(todayKST(), -6), to: todayKST() },
-      range: statsRange('this'), now: null, prev: null, categories: [],
+      range: statsRange('this'), reqSeq: 0, now: null, prev: null, categories: [],
       loading: true, error: ''
     }
   },
@@ -147,6 +147,7 @@ export default {
       this.load()
     },
     async load() {
+      const seq = ++this.reqSeq   // 기간을 빨리 바꾸면 늦게 온 앞 기간 응답은 버린다
       this.loading = true; this.error = ''
       try {
         const last = this.range.cmp
@@ -155,14 +156,16 @@ export default {
           listTransactions(last.from, last.to),
           listCategories({ includeHidden: true })
         ])
+        if (seq !== this.reqSeq) return
         this.now = summarize(cur)
         this.prev = prev.length ? summarize(prev) : null
         this.categories = cats
       } catch (e) {
+        if (seq !== this.reqSeq) return
         this.error = '통계를 불러오지 못했어요.'
         console.error(e)
       } finally {
-        this.loading = false
+        if (seq === this.reqSeq) this.loading = false
       }
     }
   }

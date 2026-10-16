@@ -11,7 +11,7 @@
         </label>
         <label class="receipt" :class="{ busy: reading }">
           <AppIcon name="image" :size="18" />{{ reading ? readingText : '영수증으로 찾기' }}
-          <input type="file" accept="image/*" class="sr-only" :disabled="reading" @change="onReceipt">
+          <input type="file" accept="image/*" class="sr-only" :disabled="reading" @click="holdLock()" @change="onReceipt">
         </label>
       </div>
 
@@ -68,6 +68,7 @@
 import AppIcon from './AppIcon.vue'
 import CategoryGrid from './CategoryGrid.vue'
 import { recentExpenses } from '@/lib/api'
+import { holdLock } from '@/lib/lock'
 import { addDays, todayKST, parse } from '@/lib/date'
 import { won } from '@/lib/money'
 
@@ -87,7 +88,7 @@ export default {
   data() {
     return {
       manual: this.startManual, query: this.initialQuery, items: [], loading: false, error: '', limit: 5,
-      reading: false, readingText: '', receiptMsg: ''
+      reading: false, readingText: '', receiptMsg: '', usedOcr: false
     }
   },
   computed: {
@@ -119,8 +120,12 @@ export default {
     query() { this.limit = 5 }
   },
   created() { this.load() },
+  beforeUnmount() {
+    // 영수증을 읽었으면 글자 읽기 도구를 메모리에서 내린다 (폰이 무거워지지 않게)
+    if (this.usedOcr) import('@/lib/ocr').then((m) => m.closeReader())
+  },
   methods: {
-    won,
+    won, holdLock,
     async load() {
       this.loading = true; this.error = ''
       try {
@@ -140,7 +145,7 @@ export default {
       const file = e.target.files?.[0]
       e.target.value = ''
       if (!file) return
-      this.reading = true; this.readingText = '읽는 중…'; this.receiptMsg = ''
+      this.reading = true; this.readingText = '읽는 중…'; this.receiptMsg = ''; this.usedOcr = true
       try {
         const [{ readImage }, { parseReceipt }] = await Promise.all([import('@/lib/ocr'), import('@/lib/ocr-parse')])
         const text = await readImage(file, ({ stage, pct }) => { this.readingText = stage === 'read' ? `읽는 중 ${pct}%` : '준비 중…' })

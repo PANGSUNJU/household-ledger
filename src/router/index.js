@@ -35,7 +35,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (!isConfigured && to.name !== 'setup') return { name: 'setup' }
   if (to.meta.public) return true
-  if (!auth.user) return { name: 'login', query: { next: to.fullPath } }
+  // 로그인 결과(토큰·오류)가 붙은 주소(#…)는 다음 주소로 기억하지 않는다
+  const next = to.hash ? to.path : to.fullPath
+  if (!auth.user) return { name: 'login', query: next === '/' ? {} : { next } }
   return true
 })
 
