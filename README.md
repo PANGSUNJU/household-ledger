@@ -29,7 +29,8 @@
 | ② 통계 기간 선택 (이번 달/지난달/최근 30일/직접), CSV 내보내기 (엑셀 한글 OK) | ✅ |
 | ③ 캡처·영수증 읽기 (기기 안에서 읽음, 여러 건 나누기, 취소 건 구분, 중복 알림, 가게 이름 기억, 분류 짐작) | ✅ — 실제 카드 앱 캡처로 맞춰 보기 필요 |
 | ③ 취소·환불 영수증으로 원래 구매 찾기 | ✅ |
-| ④ 주간 정리 알림 (앱 안 안내 + 폰 캘린더 반복 알림) | ✅ |
+| ④ 주간 정리 알림: 앱 안 안내 + **폰 푸시 알림**(설치형 앱, 10분마다 확인해서 보냄) + 캘린더 대안 | ✅ — SQL `0004` + 알림 설정 필요 (`docs/DEPLOY.md` 8번) |
+| ④ 앱으로 설치 (갤럭시 크롬 '앱 설치', 아이폰 홈 화면 추가), 인터넷 끊김 안내 화면 | ✅ |
 | ④ 홈 화면 추가(PWA), 배포 설정 파일·안내 (`docs/DEPLOY.md`) | ✅ — 배포는 팡이가 가입 후 |
 
 ---
@@ -53,6 +54,7 @@ npm install
    - "Success. No rows returned" 가 나오면 성공
 4. **New query** 로 새 창을 열고 `supabase/migrations/0002_recurring.sql` 도 같은 방법으로 **Run** (고정 수입·지출)
 5. 같은 방법으로 `supabase/migrations/0003_budget_store_remind.sql` 도 **Run** (예산·가게 이름 기억·주간 알림)
+6. 같은 방법으로 `supabase/migrations/0004_push.sql` 도 **Run** (폰 푸시 알림 주소)
    - 파일은 번호 순서대로 한 번씩만 실행해요. 이미 실행한 파일을 다시 돌리면 "already exists" 오류가 나요.
 
 ### 4. 연결 정보 넣기
@@ -120,6 +122,7 @@ Supabase **Authentication → URL Configuration** 의 **Site URL** 을 `http://l
 | `npm run build` | 배포용 빌드 (`dist/`) |
 | `npm run test:db` | DB 규칙 테스트 (인터넷 없이 내 컴퓨터에서 실행) |
 | `npm run test:ocr` | 이미지 읽기 시험 (`tests/ocr/fixtures` 의 캡처·영수증을 읽고 결과 확인) |
+| `npm run test:push` | 알림 보내기 함수의 '언제 보낼지' 규칙 시험 |
 
 배포는 `docs/DEPLOY.md` 를 보세요.
 
@@ -144,6 +147,7 @@ src/
     ocr-parse.js       읽은 글자 → 기록 후보 (캡처 여러 건 / 영수증)
     remind.js          주간 정리 알림 (앱 안 안내, 캘린더 .ics)
     csv.js             CSV 만들기
+    pwa.js             앱 설치 버튼, 서비스 워커 등록, 폰 알림 받기·끄기·시험
   components/          하단 메뉴, 화면 머리, 아이콘, 인터넷 끊김 안내
   views/               화면별 파일
   router/index.js      화면 주소, 로그인 확인
@@ -151,6 +155,10 @@ supabase/
   migrations/0001_init.sql   DB 표·보안 규칙·기본값
   migrations/0002_recurring.sql  고정 항목 표·자동 기록 함수
   migrations/0003_budget_store_remind.sql  예산·가게 이름 짝·알림 설정
+  migrations/0004_push.sql   폰 알림 주소
+  functions/send-reminders/  알림 보내기 (Edge Function)
+  cron-send-reminders.sql    10분마다 알림 확인 예약 (값을 바꿔서 한 번 실행)
+public/sw.js           서비스 워커 (알림 받기·인터넷 끊김 안내)
 tests/ocr/             이미지 읽기 시험 (가짜 캡처·영수증, 실제 캡처를 넣어 늘리면 됨)
 scripts/copy-ocr-assets.mjs  글자 읽기 파일을 public/ocr 로 복사 (설치·빌드 때 자동)
   tests/db-rules.test.mjs    DB 규칙 테스트

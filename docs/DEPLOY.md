@@ -37,14 +37,15 @@
 | Google Cloud → 클라이언트 → 승인된 JavaScript 원본 | `https://<이름>.pages.dev` 추가 |
 | 카카오 | 바꿀 것 없음 (Supabase Callback URL 하나로 충분) |
 
-## 4. 폰 홈 화면에 추가
+## 4. 폰에 앱으로 설치
+- **갤럭시(크롬)**: 배포 주소 열기 → 앱 **설정 → 앱으로 설치 → 설치** (또는 크롬 메뉴 ⋮ → **앱 설치**). 앱 서랍에 아이콘이 생기고 주소창 없이 열려요.
 - **아이폰(사파리)**: 배포 주소 열기 → 공유 버튼 → **홈 화면에 추가**
-- **안드로이드(크롬)**: 배포 주소 열기 → 메뉴(⋮) → **홈 화면에 추가** 또는 **앱 설치**
 - 아이콘·이름(가계부)·배경색은 `public/manifest.webmanifest` 에 있어요.
 
 ## 5. 주간 정리 알림 켜기
-설정 → 알림 → 주간 정리 알림 켜기 → 요일·시간 고르기 → **폰 캘린더에 추가** (아이폰) 또는 **구글 캘린더에 추가** (안드로이드).
-폰 캘린더가 매주 그 시간에 알려주고, 그 뒤 앱을 열면 앱 안에서도 "이번 주 정리할까요?"가 보여요.
+설정 → 알림 → 주간 정리 알림 켜기 → 요일·시간 고르기 → **이 폰으로 알림 받기** (8번 설정을 마친 뒤).
+정한 시간이 되면 폰 알림이 오고, 그 뒤 앱을 열면 앱 안에서도 "이번 주 정리할까요?"가 보여요.
+(알림을 못 쓰는 경우 '알림 대신 폰 캘린더에 넣기'도 있어요.)
 
 ## 6. 데이터 보관 (0원 요금제에서 챙길 것)
 - Supabase 무료 프로젝트는 **일주일 넘게 아무도 쓰지 않으면 일시 정지**될 수 있어요. 가계부를 매일 쓰면 걱정 없고, 정지 경고 메일이 오면 대시보드에 한 번 들어가면 돼요.
@@ -56,3 +57,52 @@ SQL Editor 에서 번호 순서대로 한 번씩:
 1. `supabase/migrations/0001_init.sql`
 2. `supabase/migrations/0002_recurring.sql`
 3. `supabase/migrations/0003_budget_store_remind.sql`
+4. `supabase/migrations/0004_push.sql`
+5. (8번을 마친 뒤) `supabase/cron-send-reminders.sql`
+
+## 8. 폰 푸시 알림 켜기 (0원, 한 번만)
+알림은 **https 배포 주소**에서만 동작해요. 2~3번(배포)을 먼저 해 주세요.
+
+**① 알림 열쇠 한 쌍 만들기** — 내 PC 터미널에서:
+```bash
+npx web-push generate-vapid-keys
+```
+`Public Key` 와 `Private Key` 두 줄이 나와요. (비밀 열쇠는 어디에도 적어 두지 말고 아래에만 넣어요)
+
+**② 공개 열쇠를 앱에 넣기**
+- Cloudflare Pages → 프로젝트 → Settings → Environment variables 에 `VITE_VAPID_PUBLIC_KEY` = Public Key 추가 → 다시 배포
+- (PC에서 시험하려면 `.env.local` 에도 같은 줄 추가)
+
+**③ 비밀값을 Supabase 에 넣기** — Supabase → **Edge Functions → Secrets** → Add:
+| 이름 | 값 |
+|---|---|
+| `VAPID_PUBLIC_KEY` | Public Key |
+| `VAPID_PRIVATE_KEY` | Private Key |
+| `VAPID_SUBJECT` | `mailto:내이메일` |
+| `CRON_SECRET` | 아무도 모를 긴 글자 (예: 비밀번호 생성기로 40자) |
+
+**④ 알림 보내기 함수 올리기** — Supabase → **Edge Functions → Deploy a new function → Via Editor**
+- 이름: `send-reminders`
+- 내용: `supabase/functions/send-reminders/index.ts` 전체 붙여넣기 → **Deploy**
+- 올린 뒤 함수 **Settings** 에서 **Enforce JWT verification(JWT 확인)** 을 **끄기** → Save
+  (10분마다 예약 실행이 로그인 없이 부르기 때문. 함수 안에서 `CRON_SECRET` 또는 로그인 사용자를 직접 확인해요)
+- CLI 를 쓴다면: `npx supabase functions deploy send-reminders` (설정은 `supabase/config.toml`)
+
+**⑤ 10분마다 확인하도록 예약** — SQL Editor 에 `supabase/cron-send-reminders.sql` 을 붙여넣고
+`<프로젝트ID>`, `<CRON_SECRET>` 두 군데를 바꿔서 **Run** (파일에는 진짜 값을 저장하지 마세요)
+
+**⑥ 폰에서 확인**
+1. 갤럭시 크롬으로 배포 주소 열기 → 설정 → **앱으로 설치**
+2. 설치한 앱에서 설정 → 알림 → 주간 정리 알림 켜기 → **이 폰으로 알림 받기** → 허용
+3. **시험 알림 보내기** → 몇 초 안에 폰 알림이 오면 끝
+
+**안 될 때**
+| 보이는 것 | 확인할 곳 |
+|---|---|
+| "폰 알림은 배포할 때 알림 열쇠를…" | ② `VITE_VAPID_PUBLIC_KEY` 넣고 다시 배포했는지 |
+| 시험 알림 "보내지 못했어요" | ③ 비밀값 4개, ④ 함수 이름 `send-reminders`, JWT 확인 끔 |
+| 시험 알림은 오는데 정한 시간에 안 옴 | ⑤ 예약: `select * from cron.job_run_details order by start_time desc limit 5;` |
+| 알림이 막혀 있어요 | 폰 설정 → 애플리케이션 → 가계부(또는 크롬) → 알림 허용 |
+| 갤럭시 절전 때문에 늦게 옴 | 설정 → 배터리 → 백그라운드 사용 제한에서 크롬/가계부를 '제한 없음' |
+
+비용: Edge Function 은 한 달 50만 번까지 무료인데, 10분마다 확인하면 한 달 약 4,300번이라 넉넉해요.
