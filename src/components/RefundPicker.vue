@@ -9,14 +9,16 @@
           <span class="sr-only">구매 검색</span>
           <input v-model="query" type="search" placeholder="가게·금액으로 찾기">
         </label>
-        <button type="button" class="receipt" disabled title="③ 단계에서 연결돼요">
-          <AppIcon name="image" :size="18" />영수증으로 찾기
-        </button>
+        <label class="receipt" :class="{ busy: reading }">
+          <AppIcon name="image" :size="18" />{{ reading ? readingText : '영수증으로 찾기' }}
+          <input type="file" accept="image/*" class="sr-only" :disabled="reading" @change="onReceipt">
+        </label>
       </div>
 
+      <p v-if="receiptMsg" class="msg" role="status">{{ receiptMsg }}</p>
       <p v-if="loading" class="msg">최근 지출을 불러오는 중…</p>
       <p v-else-if="error" class="msg error">{{ error }}</p>
-      <p v-else-if="!filtered.length" class="msg">
+      <p v-else-if="!filtered.length && !original" class="msg">
         {{ query ? '찾는 구매가 없어요.' : '최근 90일 동안 지출 기록이 없어요.' }}
       </p>
 
@@ -77,19 +79,26 @@ export default {
     manualCategoryId: { type: String, default: null },
     startManual: { type: Boolean, default: false },
     refundAmount: { type: Number, default: null },
-    expenseCategories: { type: Array, required: true }
+    expenseCategories: { type: Array, required: true },
+    /** 처음 검색어 (캡처·영수증에서 넘어올 때 가게 이름) */
+    initialQuery: { type: String, default: '' }
   },
-  emits: ['update:original', 'update:manualCategoryId'],
+  emits: ['update:original', 'update:manualCategoryId', 'read-receipt'],
   data() {
-    return { manual: this.startManual, query: '', items: [], loading: false, error: '', limit: 5 }
+    return {
+      manual: this.startManual, query: this.initialQuery, items: [], loading: false, error: '', limit: 5,
+      reading: false, readingText: '', receiptMsg: ''
+    }
   },
   computed: {
     filtered() {
-      const q = this.query.replace(/[,\s원]/g, '').toLowerCase()
+      // 빈칸은 빼고 비교 ('이마트 경산점' 으로 찾아도 '이마트경산점' 이 나오게)
+      const flat = (v) => (v || '').replace(/[,\s원]/g, '').toLowerCase()
+      const q = flat(this.query)
       if (!q) return this.items
       return this.items.filter((t) =>
-        (t.store_name || '').toLowerCase().includes(q) ||
-        (t.category?.name || '').toLowerCase().includes(q) ||
+        flat(t.store_name).includes(q) ||
+        flat(t.category?.name).includes(q) ||
         String(t.amount).includes(q))
     },
     shown() {
@@ -122,6 +131,37 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    /**
+     * 취소·환불 영수증 사진으로 원래 구매 찾기 (SPEC 10-B)
+     * 날짜·금액·가게를 읽어 같은 금액의 최근 지출을 찾는다. 하나뿐이면 바로 고른다.
+     */
+    async onReceipt(e) {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (!file) return
+      this.reading = true; this.readingText = '읽는 중…'; this.receiptMsg = ''
+      try {
+        const [{ readImage }, { parseReceipt }] = await Promise.all([import('@/lib/ocr'), import('@/lib/ocr-parse')])
+        const text = await readImage(file, ({ stage, pct }) => { this.readingText = stage === 'read' ? `읽는 중 ${pct}%` : '준비 중…' })
+        const r = parseReceipt(text, todayKST())
+        this.$emit('read-receipt', r)
+        if (!r.amount) { this.receiptMsg = '금액을 읽지 못했어요. 가게·금액으로 찾아 주세요.'; return }
+        const same = this.items.filter((t) => t.amount === r.amount)
+        const norm = (s) => (s || '').replace(/\s|\(주\)|㈜/g, '')
+        const best = same.filter((t) => r.store && (norm(t.store_name).includes(norm(r.store)) || norm(r.store).includes(norm(t.store_name))))
+        const pick = best.length === 1 ? best[0] : same.length === 1 ? same[0] : null
+        if (pick) {
+          this.$emit('update:original', pick)
+          this.receiptMsg = `영수증(${r.store || '가게 모름'} ${won(r.amount)}원)과 같은 구매를 찾았어요.`
+        } else {
+          this.query = String(r.amount)
+          this.receiptMsg = same.length ? `${won(r.amount)}원 구매가 여러 개예요. 골라 주세요.` : `${won(r.amount)}원 구매를 찾지 못했어요.`
+        }
+      } catch (err) {
+        this.receiptMsg = '영수증을 읽지 못했어요. 가게·금액으로 찾아 주세요.'
+        console.error(err)
+      } finally { this.reading = false }
     },
     goManual() {
       this.manual = true

@@ -21,7 +21,8 @@ await db.exec(`
 for (const m of migrations) await db.exec(m)
 await db.exec(`grant all on all tables in schema public to authenticated;
   revoke update on public.user_settings from authenticated;
-  grant update (lock_timeout) on public.user_settings to authenticated;`)
+  grant update (lock_timeout) on public.user_settings to authenticated;
+  grant update (remind_enabled, remind_weekday, remind_time, remind_done_on) on public.user_settings to authenticated;`)
 
 const A = '11111111-1111-1111-1111-111111111111'
 const B = '22222222-2222-2222-2222-222222222222'
@@ -163,6 +164,29 @@ ok('B가 불러도 A 기록은 안 생김', (await as(B, `select generate_recurr
 await expectError('B가 A 고정 항목으로 기록 못 함', B, `insert into transactions (kind,date,amount,recurring_item_id,recurring_month) values ('expense','2026-12-01',1,'${ins}','2026-12-01')`)
 await as(A, `delete from recurring_items where id=$1`, [late])
 ok('고정 항목을 지워도 지난 기록은 남음', (await as(A, `select count(*)::int c from transactions where store_name='구독' and source='recurring'`)).rows[0].c === 1)
+
+// 10. 예산 (0003)
+await as(A, `insert into budgets (month, amount) values ('2026-10-01', 1000000)`)
+ok('예산 저장', (await as(A, `select amount from budgets where month='2026-10-01'`)).rows[0].amount === 1000000)
+await expectError('같은 달 예산 두 번 막힘', A, `insert into budgets (month, amount) values ('2026-10-01', 1)`)
+await expectError('1일이 아닌 달 막힘', A, `insert into budgets (month, amount) values ('2026-10-05', 1)`)
+await expectError('0원 예산 막힘', A, `insert into budgets (month, amount) values ('2026-11-01', 0)`)
+await as(A, `insert into budgets (month, amount) values ('2026-11-01', 900000) on conflict (user_id, month) do update set amount = excluded.amount`)
+ok('B는 A 예산 못 봄', (await as(B, `select count(*)::int c from budgets`)).rows[0].c === 0)
+
+// 11. 가게 이름 짝
+await as(A, `insert into store_aliases (raw_name, display_name) values ('(주)아성다이소 경산점', '다이소')`)
+ok('가게 이름 짝 저장', (await as(A, `select display_name from store_aliases where raw_name='(주)아성다이소 경산점'`)).rows[0].display_name === '다이소')
+await as(A, `insert into store_aliases (raw_name, display_name) values ('(주)아성다이소 경산점', '다이소 경산') on conflict (user_id, raw_name) do update set display_name = excluded.display_name`)
+ok('같은 이름은 덮어쓰기', (await as(A, `select count(*)::int c from store_aliases`)).rows[0].c === 1)
+ok('B는 A 가게 이름 짝 못 봄', (await as(B, `select count(*)::int c from store_aliases`)).rows[0].c === 0)
+
+// 12. 주간 정리 알림 설정
+await as(A, `update user_settings set remind_enabled=true, remind_weekday=0, remind_time='21:30'`)
+const rs = (await as(A, `select remind_enabled, remind_weekday, remind_time::text t from user_settings`)).rows[0]
+ok('알림 설정 저장', rs.remind_enabled && rs.remind_weekday === 0 && rs.t === '21:30:00')
+await expectError('요일 7 막힘', A, `update user_settings set remind_weekday=7`)
+await expectError('알림 설정 바꿔도 잠금 비번은 여전히 직접 못 바꿈', A, `update user_settings set lock_pin_hash='x'`)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

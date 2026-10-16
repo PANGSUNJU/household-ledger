@@ -45,9 +45,75 @@
       <p v-if="lockError" class="lock-error" role="alert">{{ lockError }}</p>
     </section>
 
+    <section class="card menu" aria-label="알림">
+      <h2>알림</h2>
+      <p v-if="remindMissing" class="row muted small pad">주간 정리 알림을 쓰려면 Supabase에서 <code>0003_budget_store_remind.sql</code>을 실행해 주세요.</p>
+      <template v-else-if="remind">
+        <div class="row">
+          <span class="row-icon" style="background: #FFF1C7; color: #5E4710"><AppIcon name="calendar" :size="16" /></span>
+          <span class="row-label two-line">
+            <label for="remind-switch">주간 정리 알림</label>
+            <span class="muted small">정한 요일·시간에 일주일 치를 정리하자고 알려줘요</span>
+          </span>
+          <button
+            id="remind-switch" type="button" role="switch" class="switch" :class="{ on: remind.remind_enabled }"
+            :aria-checked="remind.remind_enabled" :disabled="remindBusy" @click="toggleRemind"
+          ><span class="knob" /></button>
+        </div>
+        <div v-if="remind.remind_enabled" class="row remind-opts">
+          <div class="days" role="radiogroup" aria-label="요일">
+            <button
+              v-for="(w, i) in WEEKDAYS" :key="w" type="button" role="radio" :aria-checked="remind.remind_weekday === i"
+              :class="{ on: remind.remind_weekday === i }" @click="saveRemind({ remind_weekday: i })"
+            >{{ w }}</button>
+          </div>
+          <label class="time-row">
+            <span>시간</span>
+            <input type="time" :value="remind.remind_time.slice(0, 5)" step="600" @change="saveRemind({ remind_time: $event.target.value })">
+          </label>
+          <p class="muted small">앱은 서버 없이 0원으로 운영돼서 직접 알림을 보내지 못해요. 대신 정한 시간이 지나 앱을 열면 안내가 뜨고, 아래로 <b>폰 캘린더에 매주 알림</b>을 넣어 두면 폰이 알려줘요.</p>
+          <div class="cal-btns">
+            <button type="button" class="mini-btn" @click="downloadIcs">폰 캘린더에 추가 (.ics)</button>
+            <a class="mini-btn" :href="googleUrl" target="_blank" rel="noopener">구글 캘린더에 추가</a>
+          </div>
+          <p class="muted tiny">아이폰: 파일을 열고 '모두 추가' · 안드로이드: 구글 캘린더 버튼이 편해요</p>
+        </div>
+      </template>
+    </section>
+
+    <section class="card menu" aria-label="데이터">
+      <h2>데이터</h2>
+      <button type="button" class="row" @click="openCsv">
+        <span class="row-icon" style="background: #DCF1E6; color: #2E6A4E"><AppIcon name="list" :size="16" /></span>
+        <span class="row-label two-line">
+          <span>CSV로 내보내기</span>
+          <span class="muted small">엑셀에서 열 수 있어요. 백업용으로도 좋아요</span>
+        </span>
+        <AppIcon name="next" :size="18" class="chev" />
+      </button>
+    </section>
+
     <section class="card menu" aria-label="기타">
       <button type="button" class="row logout" @click="logout">로그아웃</button>
     </section>
+
+    <!-- CSV 내보내기 -->
+    <BottomSheet :open="csv.open" title="CSV로 내보내기" @close="csv.open = false">
+      <div class="sheet-body">
+        <div class="chips" role="radiogroup" aria-label="기간">
+          <button
+            v-for="p in CSV_RANGES" :key="p.v" type="button" role="radio" class="chip"
+            :aria-checked="csv.kind === p.v" :class="{ on: csv.kind === p.v }" @click="csv.kind = p.v"
+          >{{ p.t }}</button>
+        </div>
+        <div v-if="csv.kind === 'custom'" class="dates">
+          <input v-model="csv.from" type="date" aria-label="시작 날짜"><span>~</span><input v-model="csv.to" type="date" aria-label="끝 날짜">
+        </div>
+        <p class="muted small">열: 날짜, 종류(지출/수입/환불), 금액, 가게, 분류, 결제수단, 메모, 상태</p>
+        <p v-if="csv.msg" class="small" :class="{ 'lock-error': csv.err }" role="status">{{ csv.msg }}</p>
+        <button type="button" class="btn-primary" :disabled="csv.busy" @click="exportCsv">{{ csv.busy ? '만드는 중…' : '내려받기' }}</button>
+      </div>
+    </BottomSheet>
 
     <!-- 잠금 비밀번호 정하기: 두 번 입력 -->
     <BottomSheet :open="pinSheet" :title="pinStep === 1 ? '잠금 비밀번호 정하기' : '한 번 더 입력해 주세요'" @close="pinSheet = false">
@@ -66,7 +132,10 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import PinPad from '@/components/PinPad.vue'
 import { auth, signOut, PROVIDER_LABEL } from '@/lib/auth'
 import { lock, TIMEOUTS } from '@/lib/lock'
-import { setLockPin, disableLock, setLockTimeout } from '@/lib/api'
+import { setLockPin, disableLock, setLockTimeout, listTransactions, getRemindSettings, saveRemindSettings } from '@/lib/api'
+import { WEEKDAYS, buildIcs, googleCalendarUrl } from '@/lib/remind'
+import { toCsv, downloadText } from '@/lib/csv'
+import { todayKST, parse, format } from '@/lib/date'
 
 export default {
   name: 'SettingsView',
@@ -74,6 +143,9 @@ export default {
   data() {
     return {
       TIMEOUTS, busy: false, lockError: '',
+      WEEKDAYS, remind: null, remindMissing: false, remindBusy: false,
+      CSV_RANGES: [{ v: 'month', t: '이번 달' }, { v: 'year', t: '올해' }, { v: 'all', t: '전체' }, { v: 'custom', t: '직접 선택' }],
+      csv: { open: false, kind: 'month', from: '', to: '', busy: false, msg: '', err: false },
       pinSheet: false, pinStep: 1, firstPin: '', pinError: '',
       menu: [
         { to: '/settings/recurring', label: '고정 수입·지출', icon: 'repeat', bg: '#E9E3FA', fg: '#4F3F86' },
@@ -88,12 +160,37 @@ export default {
     provider() { return auth.provider },
     providerLabel() { return PROVIDER_LABEL[auth.provider] || '계정' },
     providerInitial() { return { kakao: 'K', google: 'G' }[auth.provider] || '@' },
+    appUrl() { return window.location.origin },
+    googleUrl() { return this.remind ? googleCalendarUrl(this.remind, this.appUrl) : '#' },
     displayName() {
       const m = auth.user?.user_metadata || {}
       return m.name || m.full_name || m.nickname || auth.user?.email || '내 계정'
     }
   },
+  async created() {
+    const r = await getRemindSettings()
+    if (r) this.remind = r
+    else this.remindMissing = true
+  },
   methods: {
+    async saveRemind(patch) {
+      const before = { ...this.remind }
+      Object.assign(this.remind, patch)
+      this.remindBusy = true; this.lockError = ''
+      try { await saveRemindSettings(patch) } catch (e) {
+        this.remind = before
+        this.lockError = '알림 설정을 저장하지 못했어요.'
+        console.error(e)
+      } finally { this.remindBusy = false }
+    },
+    toggleRemind() {
+      // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
+      const on = !this.remind.remind_enabled
+      this.saveRemind(on ? { remind_enabled: true, remind_done_on: todayKST() } : { remind_enabled: false })
+    },
+    downloadIcs() {
+      downloadText('ledger-weekly-reminder.ics', buildIcs(this.remind, this.appUrl), 'text/calendar;charset=utf-8')
+    },
     async toggleLock() {
       this.lockError = ''
       if (!lock.enabled) {
@@ -141,6 +238,33 @@ export default {
         console.error(e)
       }
     },
+    openCsv() {
+      const t = todayKST()
+      this.csv = { ...this.csv, open: true, from: t.slice(0, 8) + '01', to: t, msg: '', err: false }
+    },
+    csvRange() {
+      const t = todayKST()
+      const { y } = parse(t)
+      if (this.csv.kind === 'month') return [t.slice(0, 8) + '01', t]
+      if (this.csv.kind === 'year') return [format(y, 1, 1), t]
+      if (this.csv.kind === 'all') return ['2000-01-01', '2100-12-31']
+      return this.csv.from <= this.csv.to ? [this.csv.from, this.csv.to] : [this.csv.to, this.csv.from]
+    },
+    async exportCsv() {
+      const [from, to] = this.csvRange()
+      if (!from || !to) { this.csv.msg = '기간을 골라 주세요.'; this.csv.err = true; return }
+      this.csv.busy = true; this.csv.msg = ''; this.csv.err = false
+      try {
+        const txs = await listTransactions(from, to)
+        if (!txs.length) { this.csv.msg = '이 기간에는 기록이 없어요.'; return }
+        const name = this.csv.kind === 'all' ? `ledger_all_${todayKST()}.csv` : `ledger_${from}_${to}.csv`
+        downloadText(name, toCsv(txs))
+        this.csv.msg = `${txs.length}건을 내려받았어요.`
+      } catch (e) {
+        this.csv.msg = '만들지 못했어요. 다시 해 주세요.'; this.csv.err = true
+        console.error(e)
+      } finally { this.csv.busy = false }
+    },
     async logout() {
       await signOut()
       this.$router.replace({ name: 'login' })
@@ -185,4 +309,24 @@ export default {
 .times button.on { border-color: #E8806A; background: #FFE6DA; color: #8E3F33; font-weight: 600; }
 .lock-error { margin: 0; padding: 0 16px 12px 16px; font-size: 13px; color: var(--expense); }
 .center { text-align: center; margin: 0; }
+button.row { width: 100%; border: 0; background: transparent; text-align: left; }
+.sheet-body { display: flex; flex-direction: column; gap: 12px; }
+.sheet-body p { margin: 0; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 13px; }
+.chip.on { border: 1.5px solid #C96A55; background: #FFE6DA; color: #8E3F33; font-weight: 600; }
+.dates { display: flex; align-items: center; gap: 6px; }
+.dates input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 15px; background: var(--surface); }
+.pad { padding: 10px 16px 14px; line-height: 18px; }
+.pad code { font-size: 11px; }
+.remind-opts { flex-direction: column; align-items: stretch; gap: 10px; padding-top: 10px; padding-bottom: 14px; }
+.remind-opts p { margin: 0; line-height: 18px; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.days button { height: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; }
+.days button.on { border-color: #E8806A; background: #FFE6DA; color: #8E3F33; font-weight: 700; }
+.time-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+.time-row input { height: 38px; border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; font-size: 15px; background: var(--surface); }
+.cal-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.mini-btn { height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: #FFF1C7; color: #5E4710; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; }
+.tiny { font-size: 11px; }
 </style>

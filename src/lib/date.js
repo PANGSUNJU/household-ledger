@@ -75,3 +75,51 @@ export function label(dateStr) {
   const { y, m, d } = parse(dateStr)
   return `${m}월 ${d}일 (${WEEK[weekday(y, m, d)]})`
 }
+
+/** 두 날짜 사이 날 수 (둘 다 포함): daysBetween('2026-10-01', '2026-10-16') → 16 */
+export function daysBetween(from, to) {
+  const a = parse(from), b = parse(to)
+  return Math.round((Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / 86400000) + 1
+}
+
+/**
+ * 통계 기간 빠른 선택 (SPEC 5-3) → { from, to, cmp: { from, to }, cmpLabel }
+ *  · this: 이번 달 1일~오늘 ↔ 지난달 같은 기간
+ *  · last: 지난달 1일~말일 ↔ 그 전달 전체
+ *  · d30 : 최근 30일 ↔ 그 앞 30일
+ *  · custom: 고른 기간 ↔ 바로 앞 같은 길이
+ */
+export function statsRange(kind, custom = null) {
+  const t = todayKST()
+  const { y, m } = parse(t)
+  if (kind === 'last') {
+    const p = addMonths(y, m, -1), pp = addMonths(y, m, -2)
+    return {
+      from: format(p.y, p.m, 1), to: format(p.y, p.m, daysInMonth(p.y, p.m)),
+      cmp: { from: format(pp.y, pp.m, 1), to: format(pp.y, pp.m, daysInMonth(pp.y, pp.m)) },
+      cmpLabel: '그 전달'
+    }
+  }
+  if (kind === 'd30') {
+    const from = addDays(t, -29)
+    return { from, to: t, cmp: { from: addDays(from, -30), to: addDays(from, -1) }, cmpLabel: '그 앞 30일' }
+  }
+  if (kind === 'custom' && custom?.from && custom?.to) {
+    const [from, to] = custom.from <= custom.to ? [custom.from, custom.to] : [custom.to, custom.from]
+    const n = daysBetween(from, to)
+    return { from, to, cmp: { from: addDays(from, -n), to: addDays(from, -1) }, cmpLabel: `바로 앞 ${n}일` }
+  }
+  const from = format(y, m, 1)
+  return { from, to: t, cmp: sameRangeLastMonth(from, t), cmpLabel: '지난달 같은 기간' }
+}
+
+/** 기간 표시: '10월 1일~16일', '9월 20일~10월 19일', '2025년 12월 1일~2026년 1월 5일' */
+export function rangeText(from, to) {
+  const a = parse(from), b = parse(to)
+  const today = parse(todayKST())
+  const yA = a.y !== today.y || a.y !== b.y ? `${a.y}년 ` : ''
+  const yB = a.y !== b.y ? `${b.y}년 ` : ''
+  if (from === to) return `${yA}${a.m}월 ${a.d}일`
+  if (a.y === b.y && a.m === b.m) return `${yA}${a.m}월 ${a.d}일~${b.d}일`
+  return `${yA}${a.m}월 ${a.d}일~${yB}${b.m}월 ${b.d}일`
+}

@@ -6,7 +6,17 @@
       <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="22" /></button>
     </header>
 
-    <router-link v-if="needCount" to="/settings/recurring" class="need-banner">
+    <section v-if="showRemind" class="card remind" aria-label="주간 정리 안내">
+      <strong>이번 주 정리할까요?</strong>
+      <span class="muted small">카드 앱 이용내역을 캡처해서 올리면 한 번에 들어가요.<template v-if="needCount"> 금액 입력이 필요한 고정 지출 {{ needCount }}건도 있어요.</template></span>
+      <div class="remind-btns">
+        <router-link to="/capture" class="r-go">캡처로 정리하기</router-link>
+        <router-link v-if="needCount" to="/settings/recurring" class="r-sub">금액 넣기</router-link>
+        <button type="button" class="r-sub" @click="remindDone">다 했어요</button>
+      </div>
+    </section>
+
+    <router-link v-else-if="needCount" to="/settings/recurring" class="need-banner">
       금액을 넣어야 하는 고정 지출 {{ needCount }}건 <span aria-hidden="true">→</span>
     </router-link>
 
@@ -20,6 +30,8 @@
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
     </section>
+
+    <BudgetCard :key="y + '-' + m" :y="y" :m="m" :spent="summary.spent" class="budget-card" />
 
     <section class="card grid-wrap" aria-label="달력">
       <div class="weekdays">
@@ -75,7 +87,9 @@
 <script>
 import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
-import { listMonth, listRecurringItems, listNeedsAmount, listCategories } from '@/lib/api'
+import BudgetCard from '@/components/BudgetCard.vue'
+import { listMonth, listRecurringItems, listNeedsAmount, listCategories, getRemindSettings, saveRemindSettings } from '@/lib/api'
+import { shouldRemind } from '@/lib/remind'
 import { upcoming } from '@/lib/recurring'
 import { todayKST, parse, format, daysInMonth, weekday, addMonths, label } from '@/lib/date'
 import { won, signed, compact } from '@/lib/money'
@@ -83,7 +97,7 @@ import { summarize, byDay } from '@/lib/stats'
 
 export default {
   name: 'CalendarView',
-  components: { AppIcon, TxRow },
+  components: { AppIcon, TxRow, BudgetCard },
   data() {
     const today = todayKST()
     // 저장 후 돌아오면 그 날짜를 보여준다 (?date=YYYY-MM-DD)
@@ -94,7 +108,7 @@ export default {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
       today, y, m, selected,
       txs: [], loading: false, error: '',
-      items: [], needCount: 0, catColors: {}
+      items: [], needCount: 0, catColors: {}, remind: null
     }
   },
   computed: {
@@ -125,11 +139,15 @@ export default {
     },
     summary() { return summarize(this.txs) },
     selectedTxs() { return this.txs.filter((t) => t.date === this.selected) },
+    showRemind() { return shouldRemind(this.remind) },
     selectedPlans() { return this.plans[this.selected] || [] },
     selectedTotal() { return this.days[this.selected]?.spent || 0 },
     dayLabel() { return label(this.selected) }
   },
-  created() { this.load() },
+  created() {
+    this.load()
+    getRemindSettings().then((r) => { this.remind = r })
+  },
   methods: {
     won, signed, compact,
     async load() {
@@ -158,6 +176,11 @@ export default {
       this.selected = sameMonthAsToday ? this.today : format(next.y, next.m, 1)
       this.load()
     },
+    async remindDone() {
+      const t = todayKST()
+      this.remind = { ...this.remind, remind_done_on: t }
+      try { await saveRemindSettings({ remind_done_on: t }) } catch (e) { console.error(e) }
+    },
     catColor(item) { return this.catColors[item.category_id] || '#F3EFEA' }
   }
 }
@@ -171,6 +194,7 @@ export default {
   display: flex; align-items: center; justify-content: center;
 }
 
+.budget-card { margin: -4px 0 12px 0; }
 .summary { margin: 4px 0 12px 0; padding: 14px 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .summary div { display: flex; flex-direction: column; gap: 2px; }
 .summary span { font-size: 13px; }
@@ -205,6 +229,12 @@ export default {
 }
 .tx.need :deep(.amt) { color: #A9533F; font-size: 13px; }
 .plan-row { opacity: 0.62; }
+.remind { margin: 4px 0 10px 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; border: 1.5px solid #F4DC8E; background: #FFFBEA; }
+.remind strong { font-size: 16px; }
+.remind .small { font-size: 13px; line-height: 19px; }
+.remind-btns { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
+.r-go { height: 38px; padding: 0 14px; border-radius: 10px; background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; text-decoration: none; }
+.r-sub { height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--surface-sunken); color: #5A4E48; font-size: 13px; display: inline-flex; align-items: center; text-decoration: none; }
 .plan-row .tile { font-size: 11px; }
 
 .day-list { margin-top: 12px; padding: 14px 16px 6px 16px; display: flex; flex-direction: column; }

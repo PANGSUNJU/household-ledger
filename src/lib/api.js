@@ -51,17 +51,28 @@ const TX_FIELDS = `
   payment_method:payment_methods ( id, name, type )
 `
 
-/** 기간 안의 기록 (from, to 모두 포함, 'YYYY-MM-DD') */
+/**
+ * 기간 안의 기록 (from, to 모두 포함, 'YYYY-MM-DD')
+ * Supabase는 한 번에 최대 1,000건만 주므로 1,000건씩 나눠 끝까지 받는다 (긴 기간 통계·CSV)
+ */
 export async function listTransactions(from, to) {
-  return check(
-    await supabase
-      .from('transactions')
-      .select(TX_FIELDS)
-      .gte('date', from)
-      .lte('date', to)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-  )
+  const PAGE = 1000
+  const all = []
+  for (let start = 0; ; start += PAGE) {
+    const rows = check(
+      await supabase
+        .from('transactions')
+        .select(TX_FIELDS)
+        .gte('date', from)
+        .lte('date', to)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(start, start + PAGE - 1)
+    )
+    all.push(...rows)
+    if (rows.length < PAGE) return all
+  }
 }
 
 /** 한 달 기록 */
@@ -281,4 +292,76 @@ export async function listFixedTransactions(fromMonth, toMonth) {
       .lte('recurring_month', toMonth)
       .order('recurring_month', { ascending: true })
   )
+}
+
+/* ---------- 예산 (②, 0003 SQL) ---------- */
+
+/** 그 달 예산. 없으면 그 전 가장 최근 예산을 기본값으로 (SPEC 5-5) → { amount, month, inherited } | null */
+export async function getBudget(month01) {
+  const rows = check(
+    await supabase.from('budgets').select('month, amount')
+      .lte('month', month01).order('month', { ascending: false }).limit(1)
+  )
+  const b = rows[0]
+  if (!b) return null
+  return { amount: b.amount, month: b.month, inherited: b.month !== month01 }
+}
+
+export async function saveBudget(month01, amount) {
+  return check(
+    await supabase.from('budgets').upsert({ month: month01, amount }, { onConflict: 'user_id,month' }).select('month, amount').single()
+  )
+}
+
+export async function deleteBudget(month01) {
+  return check(await supabase.from('budgets').delete().eq('month', month01))
+}
+
+/* ---------- 가게 이름 짝 (③, 0003 SQL) ---------- */
+
+/** { '읽힌 이름': '고친 이름' } — 표가 없으면(SQL 전) 빈 짝 */
+export async function listStoreAliases() {
+  const { data, error } = await supabase.from('store_aliases').select('raw_name, display_name').limit(2000)
+  if (error) { console.warn('가게 이름 짝을 불러오지 못했어요', error); return {} }
+  return Object.fromEntries(data.map((r) => [r.raw_name, r.display_name]))
+}
+
+export async function saveStoreAliases(pairs) {
+  const rows = pairs.filter((p) => p.raw_name && p.display_name && p.raw_name !== p.display_name)
+    .map((p) => ({ raw_name: p.raw_name.slice(0, 80), display_name: p.display_name.slice(0, 50) }))
+  if (!rows.length) return
+  check(await supabase.from('store_aliases').upsert(rows, { onConflict: 'user_id,raw_name' }))
+}
+
+/** 같은 날짜·금액·가게 기록이 있는지 (중복 알림) → 겹치는 기록 목록 */
+export async function findSameTransactions(dates) {
+  if (!dates.length) return []
+  return check(
+    await supabase.from('transactions').select('id, date, amount, store_name, kind')
+      .in('date', [...new Set(dates)])
+  )
+}
+
+/** 여러 건 한 번에 저장 (캡처 확인 화면) */
+export async function saveTransactions(list) {
+  const rows = list.map((tx) => ({
+    kind: tx.kind, date: tx.date, amount: tx.amount, status: 'confirmed',
+    store_name: tx.store_name || null, category_id: tx.category_id || null,
+    payment_method_id: tx.payment_method_id || null, memo: tx.memo || null, source: tx.source || 'image'
+  }))
+  return check(await supabase.from('transactions').insert(rows).select('id'))
+}
+
+/* ---------- 주간 정리 알림 (④, 0003 SQL) ---------- */
+
+/** 알림 설정. 표에 칸이 없으면(SQL 전) null */
+export async function getRemindSettings() {
+  const { data, error } = await supabase.from('user_settings')
+    .select('remind_enabled, remind_weekday, remind_time, remind_done_on').maybeSingle()
+  if (error) { console.warn('알림 설정을 불러오지 못했어요', error); return null }
+  return data || { remind_enabled: false, remind_weekday: 0, remind_time: '21:00:00', remind_done_on: null }
+}
+
+export async function saveRemindSettings(patch) {
+  return check(await supabase.from('user_settings').update(patch).not('user_id', 'is', null))
 }

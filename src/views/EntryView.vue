@@ -79,7 +79,8 @@
         v-if="isRefund"
         v-model:original="refundOf" v-model:manual-category-id="refundCategoryId"
         :start-manual="startManualRefund" :refund-amount="amount" :expense-categories="expenseCategories"
-        @update:original="onPickOriginal"
+        :initial-query="refundQuery"
+        @update:original="onPickOriginal" @read-receipt="onRefundReceipt"
       />
 
       <!-- 결제수단 -->
@@ -153,7 +154,7 @@ export default {
       // 사용자가 직접 고른 값은 가게별 기본값으로 덮어쓰지 않는다
       touched: { category: false, payment: false },
       paymentHint: '',
-      fromRecurring: false, needsAmount: false
+      fromRecurring: false, needsAmount: false, refundQuery: ''
     }
   },
   computed: {
@@ -189,6 +190,8 @@ export default {
 
         if (this.isEdit) {
           await this.fill(await getTransaction(this.id))
+        } else if (this.$route.query.refund) {
+          await this.fillRefund(this.$route.query)
         } else {
           const last = await lastPaymentMethodId()
           if (last && methods.some((m) => m.id === last)) {
@@ -224,6 +227,28 @@ export default {
         this.refundCategoryId = t.refund_category_id
         this.startManualRefund = true
       }
+    },
+    /** 캡처·영수증에서 '환불로 기록'을 눌러 왔을 때: 환불로 미리 채운다 */
+    async fillRefund(q) {
+      this.kind = 'income'
+      this.categoryId = this.refundCategory?.id || null
+      this.touched.category = true
+      if (/^\d+$/.test(q.amount || '')) this.amountText = q.amount
+      if (/^\d{4}-\d{2}-\d{2}$/.test(q.date || '')) this.date = q.date
+      this.store = (q.store || '').slice(0, 50)
+      this.refundQuery = this.store
+      if (q.refund_of) {
+        try {
+          this.refundOf = await getTransaction(q.refund_of)
+          if (this.refundOf.payment_method_id) this.paymentMethodId = this.refundOf.payment_method_id
+        } catch { this.refundOf = null }
+      }
+    },
+    /** 환불 화면에서 영수증을 읽었으면 비어 있는 칸을 채운다 */
+    onRefundReceipt(r) {
+      if (!this.amountText && r.amount) this.amountText = String(r.amount)
+      if (!this.store && r.store) this.store = r.store
+      if (r.date && r.canceled) this.date = r.date
     },
     setKind(k) {
       if (this.kind === k) return
