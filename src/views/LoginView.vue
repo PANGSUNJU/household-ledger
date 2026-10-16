@@ -42,7 +42,7 @@
 
 <script>
 import AppIcon from '@/components/AppIcon.vue'
-import { auth, signInWith, signInWithEmail, lastProvider, PROVIDER_LABEL } from '@/lib/auth'
+import { auth, signInWith, signInWithEmail, lastProvider, PROVIDER_LABEL, ProviderDisabledError } from '@/lib/auth'
 
 export default {
   name: 'LoginView',
@@ -75,9 +75,10 @@ export default {
       try {
         await signInWith(provider)
       } catch (e) {
-        this.error = provider === 'kakao'
-          ? '카카오 로그인이 아직 설정되지 않았어요. README의 "소셜 로그인 켜기"를 확인해 주세요.'
-          : '구글 로그인이 아직 설정되지 않았어요. README의 "소셜 로그인 켜기"를 확인해 주세요.'
+        const name = PROVIDER_LABEL[provider]
+        this.error = e instanceof ProviderDisabledError
+          ? `${name} 로그인이 아직 켜져 있지 않아요.` + (this.isDev ? ' 아래 개발용 이메일 로그인을 쓰거나, README의 "소셜 로그인 켜기"를 확인해 주세요.' : '')
+          : `${name} 로그인을 시작하지 못했어요. 잠시 뒤 다시 해 주세요.`
         console.error(e)
       } finally {
         this.busy = false

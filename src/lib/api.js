@@ -26,6 +26,22 @@ export async function listPaymentMethods({ includeHidden = false } = {}) {
   return check(await q)
 }
 
+/** 결제수단 새로 등록 (입력 화면에서 바로) */
+export async function addPaymentMethod({ type, name }) {
+  const { data: last } = await supabase
+    .from('payment_methods').select('sort_order').order('sort_order', { ascending: false }).limit(1)
+  const sort_order = (last?.[0]?.sort_order ?? 0) + 1
+  return check(
+    await supabase.from('payment_methods').insert({ type, name: name.trim(), sort_order }).select('*').single()
+  )
+}
+
+/* ---------- 자주 쓰는 내역 (빠른 입력) ---------- */
+
+export async function listQuickEntries() {
+  return check(await supabase.from('quick_entries').select('*').order('sort_order'))
+}
+
 /* ---------- 기록 ---------- */
 
 const TX_FIELDS = `
@@ -51,6 +67,51 @@ export async function listTransactions(from, to) {
 /** 한 달 기록 */
 export function listMonth(y, m) {
   return listTransactions(format(y, m, 1), format(y, m, daysInMonth(y, m)))
+}
+
+/** 기록 하나 */
+export async function getTransaction(id) {
+  return check(await supabase.from('transactions').select(TX_FIELDS).eq('id', id).single())
+}
+
+/**
+ * 같은 가게의 가장 최근 지출 (가게별 기본값: 분류·결제수단 미리 고르기)
+ * 1차는 가게 이름이 똑같을 때만 (SPEC 5-1)
+ */
+export async function lastExpenseAtStore(storeName) {
+  if (!storeName?.trim()) return null
+  const rows = check(
+    await supabase.from('transactions')
+      .select('category_id, payment_method_id')
+      .eq('kind', 'expense').eq('store_name', storeName.trim())
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(1)
+  )
+  return rows[0] || null
+}
+
+/** 마지막으로 쓴 결제수단 (결제수단 기본값) */
+export async function lastPaymentMethodId() {
+  const rows = check(
+    await supabase.from('transactions')
+      .select('payment_method_id')
+      .not('payment_method_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+  )
+  return rows[0]?.payment_method_id || null
+}
+
+/** 환불할 구매 찾기용: 최근 지출 (from 이후, 최신순) */
+export async function recentExpenses(from, limit = 100) {
+  return check(
+    await supabase.from('transactions')
+      .select(TX_FIELDS)
+      .eq('kind', 'expense').eq('status', 'confirmed')
+      .gte('date', from)
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(limit)
+  )
 }
 
 /** 기록 저장 (id 가 있으면 수정) */

@@ -42,6 +42,13 @@ export function addMonths(y, m, diff) {
   return { y: Math.floor(total / 12), m: (total % 12) + 1 }
 }
 
+/** 날짜 더하기: addDays('2026-10-16', -90) → '2026-07-18' */
+export function addDays(dateStr, diff) {
+  const { y, m, d } = parse(dateStr)
+  const t = new Date(Date.UTC(y, m - 1, d + diff))
+  return format(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate())
+}
+
 /** 이번 달 1일 ~ 오늘 (통계 기본 기간) */
 export function thisMonthRange() {
   const t = todayKST()
