@@ -46,12 +46,19 @@ export function summarize(txs) {
   return { spent, savings, income, byCategory: sorted(byCategory), byStore: sorted(byStore), byMethod: sorted(byMethod) }
 }
 
-/** 날짜별 합계 (캘린더용): { 'YYYY-MM-DD': { spent, top: '다이소', count } } */
+/** 날짜별 합계 (캘린더용): { 'YYYY-MM-DD': { spent, income, top: '다이소', count, needs } } */
 export function byDay(txs) {
   const days = {}
   for (const t of txs) {
+    if (t.status === 'needs_amount') {
+      // 금액 입력 필요(고정 지출): 합계에는 안 넣고 표시만
+      const d = (days[t.date] ||= { spent: 0, income: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
+      d.needs += 1
+      if (!d.top) d.top = t.store_name || '고정 지출'
+      continue
+    }
     if (t.status !== 'confirmed' || t.amount == null) continue
-    const d = (days[t.date] ||= { spent: 0, income: 0, count: 0, top: null, topAmount: 0, topIsExpense: false })
+    const d = (days[t.date] ||= { spent: 0, income: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
     d.count += 1
     const name = t.store_name || t.category?.name || (t.kind === 'expense' ? '지출' : '수입')
     if (t.kind === 'expense') {

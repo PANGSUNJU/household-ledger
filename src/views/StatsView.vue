@@ -40,11 +40,21 @@
           {{ showAll ? '접기' : `전체 ${tabLabel} 보기 (${rows.length})` }}
         </button>
       </section>
+
+      <router-link to="/stats/fixed" class="card fixed-link">
+        <span class="fl-icon" aria-hidden="true"><AppIcon name="repeat" :size="18" /></span>
+        <span class="fl-main">
+          <strong>고정비 달마다 보기</strong>
+          <span class="muted tiny">보험료·통신비처럼 매달 나가는 돈이 달마다 얼마였는지</span>
+        </span>
+        <AppIcon name="next" :size="18" class="chev" />
+      </router-link>
     </template>
   </main>
 </template>
 
 <script>
+import AppIcon from '@/components/AppIcon.vue'
 import { listTransactions, listCategories } from '@/lib/api'
 import { thisMonthRange, sameRangeLastMonth, parse } from '@/lib/date'
 import { won } from '@/lib/money'
@@ -57,6 +67,7 @@ import { summarize } from '@/lib/stats'
  */
 export default {
   name: 'StatsView',
+  components: { AppIcon },
   data() {
     return {
       TABS: [{ v: 'byCategory', t: '분류별' }, { v: 'byStore', t: '가게별' }, { v: 'byMethod', t: '결제수단별' }],
@@ -155,4 +166,9 @@ export default {
 .track { height: 8px; border-radius: 4px; background: #F6F1EC; overflow: hidden; }
 .fill { height: 8px; border-radius: 4px; }
 .more { height: 40px; border: 0; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; }
+.fixed-link { display: flex; align-items: center; gap: 12px; padding: 14px 16px; color: var(--text); text-decoration: none; }
+.fl-icon { width: 34px; height: 34px; border-radius: 10px; background: #E9E3FA; color: #4F3F86; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.fl-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fl-main strong { font-size: 15px; }
+.chev { color: #B8A69C; }
 </style>

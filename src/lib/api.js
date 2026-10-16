@@ -114,23 +114,27 @@ export async function recentExpenses(from, limit = 100) {
   )
 }
 
-/** 기록 저장 (id 가 있으면 수정) */
+/**
+ * 기록 저장 (id 가 있으면 수정)
+ *  · 금액이 들어 있으면 확정. '금액 입력 필요' 고정 지출에 금액을 넣으면 확정으로 바뀐다.
+ *  · 어디서 만들어졌는지(source)는 처음 만들 때만 정한다 (고정 항목 기록을 고쳐도 고정 항목 기록으로 남게)
+ */
 export async function saveTransaction(tx) {
   const row = {
     kind: tx.kind,
     date: tx.date,
     amount: tx.amount,
+    status: tx.amount == null ? 'needs_amount' : 'confirmed',
     store_name: tx.store_name || null,
     category_id: tx.category_id || null,
     payment_method_id: tx.payment_method_id || null,
     refund_of_id: tx.refund_of_id || null,
     refund_category_id: tx.refund_category_id || null,
-    memo: tx.memo || null,
-    source: tx.source || 'manual'
+    memo: tx.memo || null
   }
   const q = tx.id
     ? supabase.from('transactions').update(row).eq('id', tx.id)
-    : supabase.from('transactions').insert(row)
+    : supabase.from('transactions').insert({ ...row, source: tx.source || 'manual' })
   return check(await q.select('id').single())
 }
 
@@ -223,4 +227,58 @@ export async function disableLock() {
 
 export async function setLockTimeout(seconds) {
   return check(await supabase.from('user_settings').update({ lock_timeout: seconds }).not('user_id', 'is', null))
+}
+
+/* ---------- 고정 항목 (②) ---------- */
+/* 고정 항목 관련 조회는 0002 SQL 을 실행해야 쓸 수 있다. 다른 화면 조회(TX_FIELDS)에는 새 칸을 넣지 않아서
+   SQL 실행 전에도 캘린더·내역·통계는 그대로 동작한다. */
+
+const FIXED_FIELDS = `
+  id, kind, date, amount, store_name, status, source, recurring_item_id, recurring_month,
+  category:categories!transactions_category_id_user_id_fkey ( id, name, color, is_savings, is_refund )
+`
+
+export async function listRecurringItems() {
+  return check(await supabase.from('recurring_items').select('*').order('kind').order('sort_order').order('created_at'))
+}
+
+export async function addRecurringItem(row) {
+  const { data: last } = await supabase.from('recurring_items').select('sort_order')
+    .eq('kind', row.kind).order('sort_order', { ascending: false }).limit(1)
+  const sort_order = (last?.[0]?.sort_order ?? 0) + 1
+  return check(await supabase.from('recurring_items').insert({ ...row, sort_order }).select('*').single())
+}
+
+export async function updateRecurringItem(id, patch) {
+  return check(await supabase.from('recurring_items').update(patch).eq('id', id).select('*').single())
+}
+
+export async function deleteRecurringItem(id) {
+  return check(await supabase.from('recurring_items').delete().eq('id', id))
+}
+
+/** 날짜가 된 고정 항목 회차를 기록으로 만든다 (앱을 열 때). 새로 만든 수를 돌려준다 */
+export async function generateRecurring() {
+  return check(await supabase.rpc('generate_recurring'))
+}
+
+/** '금액 입력 필요' 기록 (오래된 것부터) */
+export async function listNeedsAmount() {
+  return check(
+    await supabase.from('transactions').select(TX_FIELDS)
+      .eq('status', 'needs_amount')
+      .order('date', { ascending: true })
+      .limit(50)
+  )
+}
+
+/** 고정 항목에서 만들어진 기록 (회차 기준 fromMonth~toMonth, 'YYYY-MM-01') */
+export async function listFixedTransactions(fromMonth, toMonth) {
+  return check(
+    await supabase.from('transactions').select(FIXED_FIELDS)
+      .eq('source', 'recurring')
+      .gte('recurring_month', fromMonth)
+      .lte('recurring_month', toMonth)
+      .order('recurring_month', { ascending: true })
+  )
 }

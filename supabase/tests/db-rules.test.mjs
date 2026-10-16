@@ -3,7 +3,8 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 import { readFileSync } from 'node:fs'
 
 const db = new PGlite({ extensions: { pgcrypto } })
-const migration = readFileSync(process.argv[2], 'utf8')
+// 마이그레이션 파일을 순서대로 모두 실행 (0001, 0002 …)
+const migrations = process.argv.slice(2).map((f) => readFileSync(f, 'utf8'))
 
 // Supabase 흉내: auth 스키마, 역할, auth.uid()
 await db.exec(`
@@ -17,7 +18,7 @@ await db.exec(`
   grant execute on function auth.uid() to authenticated;
   alter default privileges in schema public grant all on tables to authenticated;
 `)
-await db.exec(migration)
+for (const m of migrations) await db.exec(m)
 await db.exec(`grant all on all tables in schema public to authenticated;
   revoke update on public.user_settings from authenticated;
   grant update (lock_timeout) on public.user_settings to authenticated;`)
@@ -90,6 +91,78 @@ ok('잠금 끄기', (await as(A, `select lock_enabled from user_settings`)).rows
 await as(A, `delete from transactions where id='${exp}'`)
 const left = (await as(A, `select refund_of_id, refund_category_id from transactions where kind='income'`)).rows[0]
 ok('원래 지출 지우면 환불 기록은 남음', left && left.refund_of_id === null)
+
+// 8. 고정 항목 날짜 규칙 (SPEC 7장)
+const rd = async (month, day, rule) => (await as(A, `select recurring_date($1::date, $2, $3)::text d`, [month, day, rule])).rows[0].d
+ok('25일이 토요일 → 앞 평일 금요일', (await rd('2026-07-01', 25, 'before')) === '2026-07-24')
+ok('25일이 토요일 → 뒤 평일 월요일', (await rd('2026-07-01', 25, 'after')) === '2026-07-27')
+ok('31일 → 2월은 말일(28일, 토) → 27일 금', (await rd('2026-02-01', 31, 'before')) === '2026-02-27')
+ok('1일이 토요일 + 앞 평일 → 전달 31일', (await rd('2026-08-01', 1, 'before')) === '2026-07-31')
+ok('1일이 일요일 + 뒤 평일 → 2일 월요일', (await rd('2026-03-01', 1, 'after')) === '2026-03-02')
+
+// 9. 고정 항목 → 기록 자동 생성
+const salaryCat = (await as(A, `select id from categories where name='급여'`)).rows[0].id
+const fixedCat = (await as(A, `select id from categories where name='고정지출'`)).rows[0].id
+const salary = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,category_id,start_date)
+  values ('income','월급',3200000,25,'before',$1,'2026-06-01') returning id`, [salaryCat])).rows[0].id
+const ins = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,category_id,start_date)
+  values ('expense','실비보험',55000,1,'after',$1,'2026-06-01') returning id`, [fixedCat])).rows[0].id
+const elec = (await as(A, `insert into recurring_items (kind,name,is_amount_fixed,amount,day_of_month,weekend_rule,category_id,start_date)
+  values ('expense','전기요금',false,null,15,'before',$1,'2026-07-01') returning id`, [fixedCat])).rows[0].id
+const made1 = (await as(A, `select generate_recurring('2026-08-10') n`)).rows[0].n
+ok('8/10까지: 월급 2 + 보험 3 + 전기 1 = 6건 생성', made1 === 6)
+const sal = (await as(A, `select date::text d, recurring_month::text m, status, source from transactions where recurring_item_id=$1 order by date`, [salary])).rows
+ok('월급 7/25(토) → 7/24 기록, 회차는 7월', sal[1]?.d === '2026-07-24' && sal[1]?.m === '2026-07-01' && sal[1]?.source === 'recurring')
+const insAug = (await as(A, `select date::text d from transactions where recurring_item_id=$1 and recurring_month='2026-08-01'`, [ins])).rows[0]
+ok('보험 8/1(토) + 뒤 평일 → 8/3', insAug?.d === '2026-08-03')
+const el = (await as(A, `select status, amount from transactions where recurring_item_id=$1`, [elec])).rows
+ok('매달 다른 금액 → 금액 입력 필요, 금액 비어 있음', el.length === 1 && el[0].status === 'needs_amount' && el[0].amount === null)
+ok('다시 불러도 같은 회차는 안 만듦', (await as(A, `select generate_recurring('2026-08-10') n`)).rows[0].n === 0)
+await as(A, `delete from transactions where recurring_item_id=$1 and recurring_month='2026-07-01'`, [ins])
+const made2 = (await as(A, `select generate_recurring('2026-08-31') n`)).rows[0].n
+ok('8/31까지: 월급 8/25 + 전기 8/14 = 2건 (지운 7월 보험은 다시 안 생김)', made2 === 2)
+const elAug = (await as(A, `select date::text d from transactions where recurring_item_id=$1 and recurring_month='2026-08-01'`, [elec])).rows[0]
+ok('전기 8/15(토) + 앞 평일 → 8/14', elAug?.d === '2026-08-14')
+
+// 금액 채우기
+await as(A, `update transactions set amount=48200, status='confirmed' where recurring_item_id=$1 and recurring_month='2026-07-01'`, [elec])
+ok('금액 입력 필요 → 금액 넣고 확정', (await as(A, `select status from transactions where recurring_item_id=$1 and recurring_month='2026-07-01'`, [elec])).rows[0].status === 'confirmed')
+
+// 수정은 다음 회차부터 (이미 만든 기록은 그대로)
+await as(A, `update recurring_items set amount=60000 where id=$1`, [ins])
+ok('보험료 수정해도 지난 기록 금액은 그대로', (await as(A, `select amount from transactions where recurring_item_id=$1 and recurring_month='2026-06-01'`, [ins])).rows[0].amount === 55000)
+await as(A, `select generate_recurring('2026-09-01')`)
+ok('다음 회차(9/1)부터 새 금액', (await as(A, `select amount from transactions where recurring_item_id=$1 and recurring_month='2026-09-01'`, [ins])).rows[0]?.amount === 60000)
+
+// 미래 회차는 만들지 않음 (한국 오늘 이후 X)
+await as(A, `select generate_recurring('2099-01-01')`)
+ok('오늘 이후 날짜 기록은 안 만듦', (await as(A, `select count(*)::int c from transactions where source='recurring' and date > (now() at time zone 'Asia/Seoul')::date`)).rows[0].c === 0)
+
+// 그만둔 항목은 안 만듦
+const stopCount = (await as(A, `select count(*)::int c from transactions where recurring_item_id=$1`, [salary])).rows[0].c
+await as(A, `update recurring_items set is_active=false where id=$1`, [salary])
+await as(A, `update recurring_items set generated_until='2026-09-01' where id=$1`, [salary])
+await as(A, `select generate_recurring()`)
+ok('그만둔 고정 항목은 더 안 만듦', (await as(A, `select count(*)::int c from transactions where recurring_item_id=$1`, [salary])).rows[0].c === stopCount)
+
+// 시작일을 앞당기면 그 사이 회차를 만든다
+const late = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,category_id,start_date)
+  values ('expense','구독',9900,10,$1,'2026-09-20') returning id`, [fixedCat])).rows[0].id
+await as(A, `select generate_recurring('2026-09-30')`)
+ok('9/20 시작 → 9/10 회차 없음', (await as(A, `select count(*)::int c from transactions where recurring_item_id=$1`, [late])).rows[0].c === 0)
+await as(A, `update recurring_items set start_date='2026-09-01' where id=$1`, [late])
+await as(A, `select generate_recurring('2026-09-30')`)
+ok('시작일을 9/1로 앞당기면 9/10 회차 생성', (await as(A, `select date::text d from transactions where recurring_item_id=$1`, [late])).rows[0]?.d === '2026-09-10')
+
+// 규칙 위반·다른 사람
+await expectError('금액 고정인데 금액 없음 막힘', A, `insert into recurring_items (kind,name,day_of_month) values ('expense','x',1)`)
+await expectError('지출 고정 항목에 수입 분류 막힘', A, `insert into recurring_items (kind,name,amount,day_of_month,category_id) values ('expense','x',1,1,'${salaryCat}')`)
+await expectError('32일 막힘', A, `insert into recurring_items (kind,name,amount,day_of_month) values ('expense','x',1,32)`)
+ok('B는 A 고정 항목을 못 봄', (await as(B, `select count(*)::int c from recurring_items`)).rows[0].c === 0)
+ok('B가 불러도 A 기록은 안 생김', (await as(B, `select generate_recurring('2026-09-30') n`)).rows[0].n === 0)
+await expectError('B가 A 고정 항목으로 기록 못 함', B, `insert into transactions (kind,date,amount,recurring_item_id,recurring_month) values ('expense','2026-12-01',1,'${ins}','2026-12-01')`)
+await as(A, `delete from recurring_items where id=$1`, [late])
+ok('고정 항목을 지워도 지난 기록은 남음', (await as(A, `select count(*)::int c from transactions where store_name='구독' and source='recurring'`)).rows[0].c === 1)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
