@@ -52,7 +52,15 @@
         <!-- 고른 달 자세히 -->
         <section v-if="hasAny && cur" class="card detail" :aria-label="cur.label + ' 고정 지출 자세히'">
           <div class="d-head">
-            <h2>{{ cur.label }} 고정 지출</h2>
+            <div class="d-nav">
+              <button type="button" class="nav-btn" :disabled="!canPrev" aria-label="이전 달" @click="step(-1)">
+                <AppIcon name="back" :size="18" />
+              </button>
+              <h2 aria-live="polite">{{ cur.label }} 고정 지출</h2>
+              <button type="button" class="nav-btn" :disabled="!canNext" aria-label="다음 달" @click="step(1)">
+                <AppIcon name="next" :size="18" />
+              </button>
+            </div>
             <strong>{{ won(cur.done + cur.planned) }}원</strong>
           </div>
           <p v-if="cur.planned" class="muted small sub">나간 돈 {{ won(cur.done) }}원 + 남은 예정 {{ won(cur.planned) }}원</p>
@@ -61,6 +69,7 @@
             금액을 아직 안 넣은 항목 {{ cur.needs }}건 — 넣으면 합계에 더해지고 지난달과 비교해 드려요 →
           </router-link>
 
+          <p v-if="!cur.rows.length" class="muted small empty-month">이 달에는 고정 항목에서 들어온 지출이 없어요.</p>
           <ul class="rows">
             <li v-for="r in cur.rows" :key="r.key" class="row" :class="{ planned: r.planned }">
               <span class="tile" :style="{ background: r.color }" aria-hidden="true" />
@@ -90,6 +99,7 @@
 
 <script>
 import ScreenHeader from '@/components/ScreenHeader.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { listFixedTransactions, listRecurringItems, listCategories } from '@/lib/api'
 import { todayKST, parse, format, addMonths, daysInMonth, addDays } from '@/lib/date'
 import { won } from '@/lib/money'
@@ -104,7 +114,7 @@ import { upcoming, isMissingSetup } from '@/lib/recurring'
  */
 export default {
   name: 'FixedStatsView',
-  components: { ScreenHeader },
+  components: { ScreenHeader, AppIcon },
   data() {
     const today = todayKST()
     const { y, m } = parse(today)
@@ -185,6 +195,9 @@ export default {
     months() { return this.allMonths.slice(12 - this.span) },
     hasAny() { return this.txs.length > 0 || this.items.some((x) => x.is_active && x.kind === 'expense') },
     cur() { return this.months[this.sel] },
+    /** 화살표: 6개월 보기에서 더 이전으로 가면 12개월 보기로 넓힌다 (최대 12개월 전까지) */
+    canPrev() { return this.sel > 0 || this.span < 12 },
+    canNext() { return this.sel < this.months.length - 1 },
     prevOfCur() {
       const i = this.allMonths.indexOf(this.cur)
       return i > 0 ? this.allMonths[i - 1] : null
@@ -222,6 +235,17 @@ export default {
       return v ? Math.max(3, (v / this.maxTotal) * 100) : 0
     },
     setSpan(n) { this.span = n; this.sel = n - 1 },
+    step(dir) {
+      if (dir < 0 && this.sel === 0 && this.span < 12) {
+        // 지금 고른 달을 그대로 두고 12개월로 넓힌 뒤 한 달 앞으로
+        const offset = 12 - this.span
+        this.span = 12
+        this.sel = offset - 1
+        return
+      }
+      const next = this.sel + dir
+      if (next >= 0 && next < this.months.length) this.sel = next
+    },
     async load() {
       this.loading = true; this.error = ''
       try {
@@ -294,8 +318,16 @@ export default {
 .chart:not(:has(.legend)) .plot { margin-bottom: 22px; }
 
 .detail { padding: 14px 16px 12px 16px; display: flex; flex-direction: column; gap: 6px; }
-.d-head { display: flex; justify-content: space-between; align-items: baseline; }
-.d-head h2 { margin: 0; font-size: 16px; }
+.d-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.d-head h2 { margin: 0; font-size: 16px; white-space: nowrap; }
+.d-nav { display: flex; align-items: center; gap: 2px; margin-left: -8px; }
+.nav-btn {
+  width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-btn:disabled { color: #DDD3CC; }
+.empty-month { margin: 6px 0 0 0; }
+.nav-btn:not(:disabled):active { background: var(--surface-sunken); }
 .d-head strong { font-size: 20px; }
 .sub { margin: 0; }
 .badge { align-self: flex-start; margin: 2px 0; }
