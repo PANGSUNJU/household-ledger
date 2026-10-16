@@ -76,6 +76,7 @@ export default {
       TIMEOUTS, busy: false, lockError: '',
       pinSheet: false, pinStep: 1, firstPin: '', pinError: '',
       menu: [
+        { to: '/settings/recurring', label: '고정 수입·지출', icon: 'repeat', bg: '#E9E3FA', fg: '#4F3F86' },
         { to: '/settings/payment-methods', label: '결제수단 관리', icon: 'card', bg: '#FFE6DA', fg: '#8E3F33' },
         { to: '/settings/categories', label: '분류 관리', icon: 'grid', bg: '#DCF1E6', fg: '#2E6A4E' },
         { to: '/settings/quick', label: '자주 쓰는 내역', icon: 'bolt', bg: '#FFF1C7', fg: '#5E4710' }

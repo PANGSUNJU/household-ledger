@@ -10,6 +10,9 @@
     <p v-else-if="loadError" class="loading error" role="alert">{{ loadError }}</p>
 
     <form v-else class="body" @submit.prevent="save">
+      <p v-if="fromRecurring" class="from-rec" :class="{ need: needsAmount }" role="note">
+        {{ needsAmount ? `고정 지출 '${store}'의 이번 금액을 넣어 주세요. 넣으면 통계에 들어가요.` : '고정 항목에서 자동으로 들어온 기록이에요. 여기서 고쳐도 다음 달 기록에는 영향이 없어요.' }}
+      </p>
       <!-- 지출 / 수입 -->
       <div class="kind" role="radiogroup" aria-label="기록 종류">
         <button type="button" role="radio" :aria-checked="kind === 'expense'" :class="{ on: kind === 'expense', expense: true }" @click="setKind('expense')">지출</button>
@@ -149,7 +152,8 @@ export default {
       refundOf: null, refundCategoryId: null, startManualRefund: false,
       // 사용자가 직접 고른 값은 가게별 기본값으로 덮어쓰지 않는다
       touched: { category: false, payment: false },
-      paymentHint: ''
+      paymentHint: '',
+      fromRecurring: false, needsAmount: false
     }
   },
   computed: {
@@ -197,10 +201,12 @@ export default {
         console.error(e)
       } finally {
         this.loading = false
-        if (!this.isEdit) this.$nextTick(() => this.$refs.amount?.focus())
+        if (!this.isEdit || this.needsAmount) this.$nextTick(() => this.$refs.amount?.focus())
       }
     },
     async fill(t) {
+      this.fromRecurring = t.source === 'recurring'
+      this.needsAmount = t.status === 'needs_amount'
       this.kind = t.kind
       this.amountText = String(t.amount ?? '')
       this.date = t.date
@@ -366,4 +372,6 @@ export default {
   display: flex; flex-direction: column; gap: 8px; z-index: 5;
 }
 .bottom .error { margin: 0; font-size: 13px; text-align: center; }
+.from-rec { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--info-bg); color: var(--info-fg); font-size: 13px; line-height: 19px; }
+.from-rec.need { background: #FFE6DA; color: #8E3F33; font-weight: 600; }
 </style>

@@ -6,6 +6,10 @@
       <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="22" /></button>
     </header>
 
+    <router-link v-if="needCount" to="/settings/recurring" class="need-banner">
+      금액을 넣어야 하는 고정 지출 {{ needCount }}건 <span aria-hidden="true">→</span>
+    </router-link>
+
     <section class="card summary" aria-label="이번 달 요약">
       <div>
         <span class="muted">{{ m }}월 쓴 돈</span>
@@ -25,14 +29,19 @@
         <span v-for="n in blanks" :key="'b' + n" class="cell empty" />
         <button
           v-for="c in cells" :key="c.date" type="button" class="cell"
-          :class="{ 'has-rec': c.rec, today: c.date === today, future: c.date > today, selected: c.date === selected, sun: c.wd === 0, sat: c.wd === 6 }"
+          :class="{ 'has-rec': c.rec, planned: !c.rec && c.plans.length, today: c.date === today, future: c.date > today, selected: c.date === selected, sun: c.wd === 0, sat: c.wd === 6 }"
           :aria-label="c.aria" :aria-pressed="c.date === selected"
           @click="selected = c.date"
         >
           <span class="day">{{ c.d }}</span>
-          <span v-if="c.rec" class="store">{{ c.rec.top }}{{ c.rec.count > 1 ? ' 외' : '' }}</span>
+          <span v-if="c.rec" class="store">{{ c.rec.top }}{{ c.rec.count + c.rec.needs > 1 ? ' 외' : '' }}</span>
           <span v-if="c.rec && c.rec.spent > 0" class="amt">-{{ compact(c.rec.spent) }}</span>
           <span v-else-if="c.rec && (c.rec.income || c.rec.spent < 0)" class="amt plus">+{{ compact(c.rec.income - c.rec.spent) }}</span>
+          <span v-else-if="c.rec && c.rec.needs" class="amt need">입력 필요</span>
+          <template v-if="!c.rec && c.plans.length">
+            <span class="store plan">{{ c.plans[0].item.name }}{{ c.plans.length > 1 ? ' 외' : '' }}</span>
+            <span class="amt plan">예정</span>
+          </template>
         </button>
       </div>
     </section>
@@ -44,16 +53,16 @@
       </div>
       <p v-if="loading" class="muted empty-msg">불러오는 중…</p>
       <p v-else-if="error" class="error empty-msg">{{ error }}</p>
-      <p v-else-if="!selectedTxs.length" class="muted empty-msg">기록이 없어요. + 버튼으로 추가해 보세요.</p>
-      <router-link
-        v-for="t in selectedTxs" :key="t.id" :to="'/entry/' + t.id" class="tx"
-      >
-        <span class="tile" :style="{ background: t.category?.color || '#F3EFEA' }">{{ shortName(t) }}</span>
+      <p v-else-if="!selectedTxs.length && !selectedPlans.length" class="muted empty-msg">기록이 없어요. + 버튼으로 추가해 보세요.</p>
+      <TxRow v-for="t in selectedTxs" :key="t.id" :tx="t" class="tx" :class="{ need: t.status === 'needs_amount' }" />
+      <!-- 아직 날짜가 안 된 고정 항목 (예정) -->
+      <router-link v-for="p in selectedPlans" :key="p.item.id" to="/settings/recurring" class="tx plan-row">
+        <span class="tile" :style="{ background: catColor(p.item) }">예정</span>
         <span class="tx-main">
-          <span class="tx-name">{{ t.store_name || t.category?.name || '기록' }}</span>
-          <span class="tx-sub">{{ t.category?.name || '미분류' }} · {{ t.payment_method?.name || '미지정' }}</span>
+          <span class="tx-name">{{ p.item.name }}</span>
+          <span class="tx-sub">고정 {{ p.item.kind === 'income' ? '수입' : '지출' }} · 그날 앱을 열면 기록돼요</span>
         </span>
-        <span class="tx-amt" :class="t.kind === 'income' ? 'amount-income' : ''">{{ signed(t.amount, t.kind) }}</span>
+        <span class="tx-amt" :class="{ 'amount-income': p.item.kind === 'income' }">{{ p.item.is_amount_fixed ? signed(p.item.amount, p.item.kind) : '금액 미정' }}</span>
       </router-link>
     </section>
 
@@ -65,14 +74,16 @@
 
 <script>
 import AppIcon from '@/components/AppIcon.vue'
-import { listMonth } from '@/lib/api'
+import TxRow from '@/components/TxRow.vue'
+import { listMonth, listRecurringItems, listNeedsAmount, listCategories } from '@/lib/api'
+import { upcoming } from '@/lib/recurring'
 import { todayKST, parse, format, daysInMonth, weekday, addMonths, label } from '@/lib/date'
 import { won, signed, compact } from '@/lib/money'
 import { summarize, byDay } from '@/lib/stats'
 
 export default {
   name: 'CalendarView',
-  components: { AppIcon },
+  components: { AppIcon, TxRow },
   data() {
     const today = todayKST()
     // 저장 후 돌아오면 그 날짜를 보여준다 (?date=YYYY-MM-DD)
@@ -82,26 +93,39 @@ export default {
     return {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
       today, y, m, selected,
-      txs: [], loading: false, error: ''
+      txs: [], loading: false, error: '',
+      items: [], needCount: 0, catColors: {}
     }
   },
   computed: {
     blanks() { return weekday(this.y, this.m, 1) },
     days() { return byDay(this.txs) },
+    /** 날짜별 '예정' 고정 항목 (오늘 다음 날부터) */
+    plans() {
+      const out = {}
+      const from = format(this.y, this.m, 1)
+      const to = format(this.y, this.m, daysInMonth(this.y, this.m))
+      for (const o of upcoming(this.items, from, to, this.today)) (out[o.date] ||= []).push(o)
+      return out
+    },
     cells() {
       const out = []
       for (let d = 1; d <= daysInMonth(this.y, this.m); d++) {
         const date = format(this.y, this.m, d)
         const rec = this.days[date]
+        const plans = this.plans[date] || []
         out.push({
-          d, date, rec, wd: weekday(this.y, this.m, d),
-          aria: `${this.m}월 ${d}일` + (rec ? `, ${rec.count}건, 지출 ${won(rec.spent)}원` : ', 기록 없음')
+          d, date, rec, plans, wd: weekday(this.y, this.m, d),
+          aria: `${this.m}월 ${d}일` +
+            (rec ? `, ${rec.count}건, 지출 ${won(rec.spent)}원` + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
+              : plans.length ? `, 고정 항목 예정 ${plans.length}건` : ', 기록 없음')
         })
       }
       return out
     },
     summary() { return summarize(this.txs) },
     selectedTxs() { return this.txs.filter((t) => t.date === this.selected) },
+    selectedPlans() { return this.plans[this.selected] || [] },
     selectedTotal() { return this.days[this.selected]?.spent || 0 },
     dayLabel() { return label(this.selected) }
   },
@@ -111,7 +135,15 @@ export default {
     async load() {
       this.loading = true; this.error = ''
       try {
-        this.txs = await listMonth(this.y, this.m)
+        // 고정 항목·금액 입력 필요는 0002 SQL 전이면 실패할 수 있어서 따로 (실패해도 캘린더는 보인다)
+        const [txs, items, needs, cats] = await Promise.all([
+          listMonth(this.y, this.m),
+          listRecurringItems().catch(() => []),
+          listNeedsAmount().catch(() => []),
+          listCategories({ includeHidden: true }).catch(() => [])
+        ])
+        this.txs = txs; this.items = items; this.needCount = needs.length
+        this.catColors = Object.fromEntries(cats.map((c) => [c.id, c.color]))
       } catch (e) {
         this.error = '기록을 불러오지 못했어요.'
         console.error(e)
@@ -126,10 +158,7 @@ export default {
       this.selected = sameMonthAsToday ? this.today : format(next.y, next.m, 1)
       this.load()
     },
-    shortName(t) {
-      const n = t.category?.name || '기타'
-      return n.split(/[·/]/)[0].slice(0, 2)
-    }
+    catColor(item) { return this.catColors[item.category_id] || '#F3EFEA' }
   }
 }
 </script>
@@ -167,6 +196,16 @@ export default {
 .store { font-size: 10px; line-height: 13px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .amt { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--expense); }
 .amt.plus { color: var(--income); }
+.amt.need { color: #A9533F; font-size: 9px; }
+.store.plan, .amt.plan { color: var(--text-faint); font-weight: 500; }
+.cell.planned { background: repeating-linear-gradient(135deg, transparent 0 5px, #F6EFEA 5px 7px); }
+.need-banner {
+  display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0; padding: 12px 14px;
+  border-radius: var(--radius-md); background: #FFE6DA; color: #8E3F33; font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.tx.need :deep(.amt) { color: #A9533F; font-size: 13px; }
+.plan-row { opacity: 0.62; }
+.plan-row .tile { font-size: 11px; }
 
 .day-list { margin-top: 12px; padding: 14px 16px 6px 16px; display: flex; flex-direction: column; }
 .day-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; }

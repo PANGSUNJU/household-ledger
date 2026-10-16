@@ -18,6 +18,8 @@ const routes = [
   { path: '/capture', name: 'capture', component: () => import('@/views/CaptureView.vue') },
   { path: '/settings/payment-methods', name: 'payment-methods', component: () => import('@/views/PaymentMethodsView.vue') },
   { path: '/settings/categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') },
+  { path: '/settings/recurring', name: 'recurring', component: () => import('@/views/RecurringView.vue') },
+  { path: '/stats/fixed', name: 'fixed-stats', component: () => import('@/views/FixedStatsView.vue') },
   { path: '/settings/quick', name: 'quick', component: () => import('@/views/QuickEntriesView.vue') },
 
   { path: '/:pathMatch(.*)*', redirect: '/' }
