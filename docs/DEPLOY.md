@@ -1,40 +1,42 @@
 # 배포하기 (폰에서 언제든 쓰기)
 
-> 지금은 `npm run dev`로 내 PC에서만 열려요. 배포하면 `https://내가계부.pages.dev` 같은 주소가 생겨서
+> 지금은 `npm run dev`로 내 PC에서만 열려요. 배포하면 `https://household-ledger.○○.workers.dev` 같은 주소가 생겨서
 > 밖에서도 폰으로 열 수 있고, 홈 화면에 앱처럼 추가할 수 있어요. 비용은 0원이에요.
 
-## 1. 어디에 올릴지 (추천: Cloudflare Pages)
+## 1. 어디에 올릴지 (추천: Cloudflare)
 
 | 서비스 | 무료로 되는 것 | 메모 |
 |---|---|---|
-| **Cloudflare Pages** (추천) | 한 달 빌드 500번, 파일 2만 개, 파일 하나 25MB까지 | 개인·상업 구분 없이 무료. 이 앱의 가장 큰 파일(글자 읽기 엔진)이 약 5MB라 넉넉해요 |
+| **Cloudflare (Workers & Pages)** (추천) | 정적 파일 무료, 파일 하나 25MB까지 | 개인·상업 구분 없이 무료. 이 앱의 가장 큰 파일(글자 읽기 엔진)이 약 5MB라 넉넉해요 |
 | Vercel (Hobby) | 개인 비상업 용도 무료 | 설정 파일 `vercel.json` 이미 있음 |
-| Netlify | 무료 요금제 | 설정 파일 `public/_redirects` 이미 있음 |
 
 요금제는 바뀔 수 있으니 가입할 때 한 번 확인하세요.
 
-## 2. Cloudflare Pages에 올리기
-1. https://dash.cloudflare.com 가입 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
-2. GitHub 저장소 `household-ledger` 선택
-3. 빌드 설정
-   - Framework preset: **Vue** (또는 None)
+## 2. Cloudflare 에 올리기 (Workers & Pages)
+1. https://dash.cloudflare.com 가입 → **Workers & Pages** → **Create** → **Import a repository** → GitHub 저장소 `household-ledger` 선택
+2. 빌드 설정
    - Build command: `npm run build`
-   - Build output directory: `dist`
-4. **Environment variables** 에 두 개 추가 (`.env.local` 과 같은 값)
+   - Deploy command: `npx wrangler deploy` (기본값 그대로)
+   - 저장소의 `wrangler.jsonc` 가 "빌드된 `dist` 폴더를 올리고, 없는 주소도 앱 화면을 보여줘" 라고 알려줘요.
+3. **빌드할 때 쓰는 변수** 두 개 추가 — 프로젝트 → **Settings → Build → Variables and secrets** (`.env.local` 과 같은 값)
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   - **Encrypt(암호화)는 누르지 않아요.** 원래 공개되는 값이고, 빌드 때 읽혀야 해요.
    - ⚠️ `service_role` 키는 절대 넣지 않아요.
-5. **Save and Deploy** → 몇 분 뒤 `https://<이름>.pages.dev` 주소가 나와요.
-6. 이후엔 GitHub `main`에 올릴 때마다 자동으로 다시 배포돼요.
+   - 변수를 넣거나 바꾼 뒤에는 **Deployments → 다시 배포(Retry)** 해야 반영돼요.
+4. 몇 분 뒤 `https://household-ledger.<계정이름>.workers.dev` 같은 주소가 나와요.
+5. 이후엔 GitHub `main`에 올릴 때마다 자동으로 다시 배포돼요.
+
+> 배포 주소를 열었는데 로그인 화면 대신 "연결 정보를 넣어 주세요" 화면이 나오면, 3번 변수가 **Build** 쪽에 들어갔는지 확인하세요.
 
 ## 3. 배포 주소를 로그인에 등록 (안 하면 로그인 후 localhost로 가요)
-배포 주소를 `https://<이름>.pages.dev` 라고 할 때:
+배포 주소를 `https://<배포 주소>` 라고 할 때:
 
 | 어디 | 무엇을 |
 |---|---|
 | Supabase → Authentication → URL Configuration | **Site URL** 을 배포 주소로 바꾸기 (PC 개발용 localhost 는 Redirect URLs 에 남겨 두기) |
-| 같은 곳 → Redirect URLs | `https://<이름>.pages.dev` 와 `https://<이름>.pages.dev/**` 추가 |
-| Google Cloud → 클라이언트 → 승인된 JavaScript 원본 | `https://<이름>.pages.dev` 추가 |
+| 같은 곳 → Redirect URLs | `https://<배포 주소>` 와 `https://<배포 주소>/**` 추가 |
+| Google Cloud → 클라이언트 → 승인된 JavaScript 원본 | `https://<배포 주소>` 추가 |
 | 카카오 | 바꿀 것 없음 (Supabase Callback URL 하나로 충분) |
 
 ## 4. 폰에 앱으로 설치
@@ -70,7 +72,7 @@ npx web-push generate-vapid-keys
 `Public Key` 와 `Private Key` 두 줄이 나와요. (비밀 열쇠는 어디에도 적어 두지 말고 아래에만 넣어요)
 
 **② 공개 열쇠를 앱에 넣기**
-- Cloudflare Pages → 프로젝트 → Settings → Environment variables 에 `VITE_VAPID_PUBLIC_KEY` = Public Key 추가 → 다시 배포
+- Cloudflare → 프로젝트 → Settings → Build → Variables and secrets 에 `VITE_VAPID_PUBLIC_KEY` = Public Key 추가 → 다시 배포
 - (PC에서 시험하려면 `.env.local` 에도 같은 줄 추가)
 
 **③ 비밀값을 Supabase 에 넣기** — Supabase → **Edge Functions → Secrets** → Add:
