@@ -10,6 +10,17 @@
       </div>
     </section>
 
+    <section v-if="showInstall" class="card menu" aria-label="앱 설치">
+      <div class="row">
+        <span class="row-icon" style="background: #FFE6DA; color: #8E3F33"><AppIcon name="plus" :size="16" /></span>
+        <span class="row-label two-line">
+          <span>앱으로 설치</span>
+          <span class="muted small">{{ installHint }}</span>
+        </span>
+        <button v-if="pwa.installEvent" type="button" class="mini-btn install" @click="install">설치</button>
+      </div>
+    </section>
+
     <section class="card menu" aria-label="가계부 관리">
       <h2>가계부 관리</h2>
       <router-link v-for="item in menu" :key="item.to" :to="item.to" class="row">
@@ -71,12 +82,30 @@
             <span>시간</span>
             <input type="time" :value="remind.remind_time.slice(0, 5)" step="600" @change="$event.target.value ? saveRemind({ remind_time: $event.target.value }) : ($event.target.value = remind.remind_time.slice(0, 5))">
           </label>
-          <p class="muted small">앱은 서버 없이 0원으로 운영돼서 직접 알림을 보내지 못해요. 대신 정한 시간이 지나 앱을 열면 안내가 뜨고, 아래로 <b>폰 캘린더에 매주 알림</b>을 넣어 두면 폰이 알려줘요.</p>
-          <div class="cal-btns">
-            <button type="button" class="mini-btn" @click="downloadIcs">폰 캘린더에 추가 (.ics)</button>
-            <a class="mini-btn" :href="googleUrl" target="_blank" rel="noopener">구글 캘린더에 추가</a>
+          <!-- 폰 푸시 알림 -->
+          <div class="push" role="group" aria-label="폰 알림">
+            <template v-if="push.on">
+              <p class="push-on">✓ 이 폰({{ push.device }})으로 알림을 받고 있어요</p>
+              <div class="cal-btns">
+                <button type="button" class="mini-btn" :disabled="push.busy" @click="testPush">시험 알림 보내기</button>
+                <button type="button" class="mini-btn plain" :disabled="push.busy" @click="offPush">이 폰 알림 끄기</button>
+              </div>
+            </template>
+            <template v-else-if="push.state === 'ready'">
+              <button type="button" class="btn-push" :disabled="push.busy" @click="onPush">이 폰으로 알림 받기</button>
+              <p class="muted tiny">누르면 폰이 알림을 허용할지 물어봐요. 정한 시간에 폰 알림으로 알려줘요.</p>
+            </template>
+            <p v-else class="muted small">{{ pushHelp }}</p>
+            <p v-if="push.msg" class="small" :class="{ 'lock-error': push.err }" role="status">{{ push.msg }}</p>
           </div>
-          <p class="muted tiny">아이폰: 파일을 열고 '모두 추가' · 안드로이드: 구글 캘린더 버튼이 편해요</p>
+          <p class="muted tiny">알림을 못 받아도, 정한 시간이 지나 앱을 열면 앱 안에서 "이번 주 정리할까요?"를 보여줘요.</p>
+          <details class="cal-alt">
+            <summary>알림 대신 폰 캘린더에 넣기</summary>
+            <div class="cal-btns">
+              <button type="button" class="mini-btn" @click="downloadIcs">폰 캘린더에 추가 (.ics)</button>
+              <a class="mini-btn" :href="googleUrl" target="_blank" rel="noopener">구글 캘린더에 추가</a>
+            </div>
+          </details>
         </div>
       </template>
     </section>
@@ -134,6 +163,7 @@ import { auth, signOut, PROVIDER_LABEL } from '@/lib/auth'
 import { lock, TIMEOUTS } from '@/lib/lock'
 import { setLockPin, disableLock, setLockTimeout, listTransactions, getRemindSettings, saveRemindSettings } from '@/lib/api'
 import { WEEKDAYS, buildIcs, googleCalendarUrl } from '@/lib/remind'
+import { pwa, isIos, isStandalone, promptInstall, pushSupport, currentSubscription, enablePush, disablePush, sendTestPush } from '@/lib/pwa'
 import { toCsv, downloadText } from '@/lib/csv'
 import { todayKST, parse, format } from '@/lib/date'
 
@@ -144,6 +174,7 @@ export default {
     return {
       TIMEOUTS, busy: false, lockError: '',
       WEEKDAYS, remind: null, remindMissing: false, remindBusy: false,
+      push: { state: pushSupport(), on: false, device: '', busy: false, msg: '', err: false },
       CSV_RANGES: [{ v: 'month', t: '이번 달' }, { v: 'year', t: '올해' }, { v: 'all', t: '전체' }, { v: 'custom', t: '직접 선택' }],
       csv: { open: false, kind: 'month', from: '', to: '', busy: false, msg: '', err: false },
       pinSheet: false, pinStep: 1, firstPin: '', pinError: '',
@@ -161,6 +192,22 @@ export default {
     providerLabel() { return PROVIDER_LABEL[auth.provider] || '계정' },
     providerInitial() { return { kakao: 'K', google: 'G' }[auth.provider] || '@' },
     appUrl() { return window.location.origin },
+    pwa() { return pwa },
+    showInstall() { return !pwa.installed && (pwa.installEvent || isIos()) },
+    installHint() {
+      return pwa.installEvent
+        ? '홈 화면·앱 서랍에 아이콘이 생기고 주소창 없이 열려요'
+        : '사파리 아래 공유 버튼 → 홈 화면에 추가를 눌러 주세요'
+    },
+    pushHelp() {
+      return {
+        'no-key': '폰 알림은 배포할 때 알림 열쇠를 넣으면 켤 수 있어요 (docs/DEPLOY.md 8번).',
+        'need-https': '폰 알림은 배포한 https 주소에서만 켤 수 있어요.',
+        'ios-install': '아이폰은 사파리 공유 → 홈 화면에 추가 후, 그 아이콘으로 열면 알림을 켤 수 있어요.',
+        unsupported: '이 브라우저는 알림을 받을 수 없어요. 갤럭시는 크롬으로 열어 주세요.',
+        denied: '알림이 막혀 있어요. 폰 설정 → 애플리케이션(또는 크롬 사이트 설정) → 알림에서 허용해 주세요.'
+      }[this.push.state] || ''
+    },
     googleUrl() { return this.remind ? googleCalendarUrl(this.remind, this.appUrl) : '#' },
     displayName() {
       const m = auth.user?.user_metadata || {}
@@ -171,6 +218,9 @@ export default {
     const r = await getRemindSettings()
     if (r) this.remind = r
     else this.remindMissing = true
+    const sub = await currentSubscription()
+    this.push.on = !!sub
+    this.push.device = this.deviceLabel()
   },
   methods: {
     async saveRemind(patch) {
@@ -187,6 +237,42 @@ export default {
       // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
       const on = !this.remind.remind_enabled
       this.saveRemind(on ? { remind_enabled: true, remind_done_on: todayKST() } : { remind_enabled: false })
+    },
+    deviceLabel() {
+      return /SamsungBrowser/.test(navigator.userAgent) ? '삼성 인터넷' : /Android/.test(navigator.userAgent) ? '안드로이드' : isIos() ? '아이폰' : '이 기기'
+    },
+    async install() {
+      if (await promptInstall()) this.push.msg = ''
+    },
+    async onPush() {
+      this.push.busy = true; this.push.msg = ''; this.push.err = false
+      try {
+        await enablePush()
+        this.push.on = true
+        this.push.msg = '알림을 켰어요. 시험 알림으로 잘 오는지 확인해 보세요.'
+      } catch (e) {
+        this.push.state = pushSupport()
+        this.push.err = true
+        this.push.msg = e.state === 'denied' ? '알림을 허용하지 않았어요.' : '알림을 켜지 못했어요. 잠시 뒤 다시 해 주세요.'
+        console.error(e)
+      } finally { this.push.busy = false }
+    },
+    async offPush() {
+      this.push.busy = true; this.push.msg = ''; this.push.err = false
+      try { await disablePush(); this.push.on = false; this.push.msg = '이 폰 알림을 껐어요.' } catch (e) {
+        this.push.err = true; this.push.msg = '끄지 못했어요.'; console.error(e)
+      } finally { this.push.busy = false }
+    },
+    async testPush() {
+      this.push.busy = true; this.push.msg = ''; this.push.err = false
+      try {
+        await sendTestPush()
+        this.push.msg = '보냈어요. 몇 초 안에 알림이 와요.'
+      } catch (e) {
+        this.push.err = true
+        this.push.msg = e.userMessage || '보내지 못했어요. 알림 보내기 기능(Edge Function) 설정을 확인해 주세요.'
+        console.error(e)
+      } finally { this.push.busy = false }
     },
     downloadIcs() {
       downloadText('ledger-weekly-reminder.ics', buildIcs(this.remind, this.appUrl), 'text/calendar;charset=utf-8')
@@ -329,4 +415,12 @@ button.row { width: 100%; border: 0; background: transparent; text-align: left; 
 .cal-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .mini-btn { height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: #FFF1C7; color: #5E4710; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; }
 .tiny { font-size: 11px; }
+.push { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-sunken); }
+.push p { margin: 0; }
+.push-on { font-size: 14px; font-weight: 600; color: #2E6A4E; }
+.btn-push { height: 44px; border: 0; border-radius: 12px; background: var(--primary); color: var(--on-primary); font-size: 15px; font-weight: 700; }
+.mini-btn.plain { background: var(--surface); color: #5A4E48; }
+.mini-btn.install { background: var(--primary); color: var(--on-primary); }
+.cal-alt summary { font-size: 13px; color: var(--text-sub); cursor: pointer; padding: 4px 0; }
+.cal-alt .cal-btns { padding-top: 8px; }
 </style>

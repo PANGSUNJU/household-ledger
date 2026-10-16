@@ -188,5 +188,20 @@ ok('알림 설정 저장', rs.remind_enabled && rs.remind_weekday === 0 && rs.t 
 await expectError('요일 7 막힘', A, `update user_settings set remind_weekday=7`)
 await expectError('알림 설정 바꿔도 잠금 비번은 여전히 직접 못 바꿈', A, `update user_settings set lock_pin_hash='x'`)
 
+// 13. 푸시 알림 주소 (0004)
+const EP = 'https://fcm.googleapis.com/fcm/send/abc123'
+await as(A, `select save_push_subscription('${EP}', 'p256', 'authv', 'Android Chrome')`)
+ok('알림 주소 저장 (함수로)', (await as(A, `select count(*)::int c from push_subscriptions`)).rows[0].c === 1)
+await as(A, `select save_push_subscription('${EP}', 'p256-2', 'authv2', 'Android Chrome')`)
+ok('같은 폰 다시 저장 → 하나로', (await as(A, `select count(*)::int c, max(p256dh) k from push_subscriptions`)).rows[0].c === 1)
+ok('B는 A 알림 주소 못 봄', (await as(B, `select count(*)::int c from push_subscriptions`)).rows[0].c === 0)
+await as(B, `select save_push_subscription('${EP}', 'p', 'a', null)`)
+ok('같은 폰에서 B로 로그인 → 주소가 B로 옮겨감', (await as(A, `select count(*)::int c from push_subscriptions`)).rows[0].c === 0 && (await as(B, `select count(*)::int c from push_subscriptions`)).rows[0].c === 1)
+await expectError('함수 말고 직접 저장은 막힘', A, `insert into push_subscriptions (endpoint, p256dh, auth) values ('https://x.example/1','p','a')`)
+await expectError('https 아닌 주소 막힘', A, `select save_push_subscription('http://evil.example/x', 'p', 'a', null)`)
+await as(B, `delete from push_subscriptions where endpoint='${EP}'`)
+ok('본인 알림 주소 지우기', (await as(B, `select count(*)::int c from push_subscriptions`)).rows[0].c === 0)
+await expectError('보낸 날(remind_sent_on)은 앱에서 못 바꿈', A, `update user_settings set remind_sent_on = '2026-10-18'`)
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
