@@ -75,10 +75,13 @@ export default {
   components: { AppIcon },
   data() {
     const today = todayKST()
-    const { y, m } = parse(today)
+    // 저장 후 돌아오면 그 날짜를 보여준다 (?date=YYYY-MM-DD)
+    const q = this.$route.query.date
+    const selected = /^\d{4}-\d{2}-\d{2}$/.test(q || '') ? q : today
+    const { y, m } = parse(selected)
     return {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
-      today, y, m, selected: today,
+      today, y, m, selected,
       txs: [], loading: false, error: ''
     }
   },

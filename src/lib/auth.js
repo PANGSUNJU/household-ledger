@@ -25,8 +25,34 @@ export async function initAuth() {
   })
 }
 
+/**
+ * Supabase 대시보드에서 이 로그인 방식이 켜져 있는지 확인.
+ * 꺼진 채로 넘어가면 "Unsupported provider" 영어 오류 화면이 떠서, 먼저 확인한다.
+ * 확인 자체가 실패하면 true (일단 진행)
+ */
+export async function isProviderEnabled(provider) {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }
+    })
+    if (!res.ok) return true
+    const settings = await res.json()
+    return settings?.external?.[provider] !== false
+  } catch {
+    return true
+  }
+}
+
+export class ProviderDisabledError extends Error {
+  constructor(provider) {
+    super(`${provider} login is not enabled`)
+    this.provider = provider
+  }
+}
+
 /** 구글·카카오 로그인 (Supabase 대시보드에서 켜야 동작) */
 export async function signInWith(provider) {
+  if (!(await isProviderEnabled(provider))) throw new ProviderDisabledError(provider)
   rememberProvider(provider)
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
