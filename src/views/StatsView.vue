@@ -24,16 +24,16 @@
 
     <template v-else>
       <section class="card summary" aria-label="이번 달 요약">
-        <span class="muted small">{{ periodName }} 쓴 돈 <span class="tiny">(환불 반영)</span></span>
+        <span class="muted small">{{ periodName }} 지출 <span class="tiny">(환불 반영)</span></span>
         <strong class="big">{{ won(now.spent) }}원</strong>
         <span v-if="diffText" class="badge" :class="diff > 0 ? 'up' : 'down'">{{ diffText }}</span>
         <div class="lines">
           <div><span class="muted">수입</span><strong class="amount-income">{{ won(now.income) }}원</strong></div>
-          <div v-if="now.savings"><span class="muted">저축/투자</span><strong class="savings">{{ won(now.savings) }}원</strong></div>
+          <div v-if="now.savings"><span class="muted">그중 저축/투자</span><strong class="savings">{{ won(now.savings) }}원</strong></div>
         </div>
       </section>
 
-      <BudgetCard v-if="period === 'this'" :y="thisY" :m="thisM" :spent="now.spent" />
+      <BudgetCard v-if="period === 'this'" :y="thisY" :m="thisM" :spent="now.budgetSpent" />
 
       <div class="tabs" role="tablist" aria-label="보는 기준">
         <button

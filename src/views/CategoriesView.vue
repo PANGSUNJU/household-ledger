@@ -21,7 +21,7 @@
           <template #lead><span class="swatch" :style="{ background: c.color }" aria-hidden="true" /></template>
           {{ c.name }}
           <template #trail>
-            <span v-if="c.is_savings" class="tag">통계에서 따로</span>
+            <span v-if="c.is_savings" class="tag">예산에서 빼요</span>
             <span v-if="c.is_refund" class="tag lock">지울 수 없음</span>
             <button type="button" class="mini" @click="openEdit(c)">수정</button>
             <button v-if="!c.is_refund" type="button" class="mini" @click="setActive(c, false)">숨기기</button>
@@ -40,7 +40,7 @@
         </ManageRow>
       </section>
 
-      <div class="notice">수입의 '환불' 분류는 통계 계산에 쓰여서 지우거나 숨길 수 없어요. '저축/투자'는 통계에서 쓴 돈과 따로 보여줘요.</div>
+      <div class="notice">수입의 '환불' 분류는 통계 계산에 쓰여서 지우거나 숨길 수 없어요. '저축/투자'는 지출로 기록되지만 예산 계산에서는 빠져요.</div>
     </div>
 
     <BottomSheet :open="sheet.open" :title="sheet.id ? '분류 수정' : (kind === 'expense' ? '지출 분류 추가' : '수입 분류 추가')" @close="sheet.open = false">

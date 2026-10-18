@@ -189,13 +189,11 @@ export default {
       ]
     },
     month01() { return format(this.thisY, this.thisM, 1) },
-    /** 이번 달(회차 기준) 고정 지출: 이미 나간 것 + 남은 예정. 저축/투자 분류는 뺀다 (통계와 같은 규칙) */
+    /** 이번 달(회차 기준) 고정 지출: 이미 나간 것 + 남은 예정 (저축/투자도 지출로 넣는다, 통계와 같은 규칙) */
     month() {
-      const isSaving = (catId) => this.categories.find((c) => c.id === catId)?.is_savings
       let done = 0, income = 0, unknown = 0, left = 0
       for (const t of this.doneTxs) {
         if (t.kind === 'income') { if (t.status === 'confirmed') income += t.amount; continue }
-        if (t.category?.is_savings) continue
         if (t.status === 'needs_amount') unknown += 1
         else done += t.amount
       }
@@ -203,7 +201,6 @@ export default {
       for (const o of upcoming(this.activeItems, this.today, end, this.today)) {
         if (o.month !== this.month01) continue
         if (o.item.kind === 'income') { if (o.item.is_amount_fixed) income += o.item.amount; continue }
-        if (isSaving(o.item.category_id)) continue
         if (o.item.is_amount_fixed) left += o.item.amount
         else unknown += 1
       }

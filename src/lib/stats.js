@@ -1,6 +1,7 @@
 /*
  * 통계 계산 (SPEC 7장)
- *  · 쓴 돈 = 지출(저축/투자 제외) − 환불
+ *  · 지출 = 지출(저축/투자 포함) − 환불. savings 는 그중 저축/투자 금액
+ *  · 예산에 쓰는 돈 = 지출 − 저축/투자 (budgetSpent)
  *  · 분류별 = 그 분류 지출 − 그 분류에서 빼기로 한 환불
  *  · 수입 = 수입 중 환불 제외
  *  · 확정(confirmed) 기록만, 금액 입력 필요 상태는 넣지 않음
@@ -23,7 +24,7 @@ export function summarize(txs) {
     const isRefund = t.kind === 'income' && t.category?.is_refund
 
     if (t.kind === 'expense') {
-      if (t.category?.is_savings) { savings += t.amount; continue }
+      if (t.category?.is_savings) savings += t.amount
       spent += t.amount
       add(byCategory, t.category_id || 'none', t.category?.name || '미분류', t.amount, { color: t.category?.color })
       add(byStore, t.store_name || '(가게 없음)', t.store_name || '(가게 없음)', t.amount)
@@ -43,7 +44,7 @@ export function summarize(txs) {
     .filter((v) => v.amount !== 0)
     .sort((a, b) => b.amount - a.amount)
 
-  return { spent, savings, income, byCategory: sorted(byCategory), byStore: sorted(byStore), byMethod: sorted(byMethod) }
+  return { spent, savings, budgetSpent: spent - savings, income, byCategory: sorted(byCategory), byStore: sorted(byStore), byMethod: sorted(byMethod) }
 }
 
 /** 날짜별 합계 (캘린더용): { 'YYYY-MM-DD': { spent, income, top: '다이소', count, needs } } */
