@@ -48,17 +48,23 @@ async function decode(file) {
   }
 }
 
-async function prepare(file) {
+async function prepare(file, crop) {
   const bmp = await decode(file)
+  // 고른 영역만 (비율 → 픽셀)
+  const c = crop && crop.w > 0 && crop.h > 0 ? crop : { x: 0, y: 0, w: 1, h: 1 }
+  const sx = Math.round(c.x * bmp.width), sy = Math.round(c.y * bmp.height)
+  const sw = Math.max(1, Math.round(c.w * bmp.width)), sh = Math.max(1, Math.round(c.h * bmp.height))
   const MAX_W = 1600, MAX_SIDE = 6000
-  let scale = Math.min(1, MAX_W / bmp.width, MAX_SIDE / bmp.height)
-  if (bmp.width < 700) scale = Math.min(2, 1000 / bmp.width)   // 작은 이미지는 키워야 잘 읽힌다
-  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale)
+  let scale = Math.min(1, MAX_W / sw, MAX_SIDE / sh)
+  if (sw < 700) scale = Math.min(2, 1000 / sw)   // 작은 이미지는 키워야 잘 읽힌다
+  const w = Math.round(sw * scale), h = Math.round(sh * scale)
+  // 자른 이미지는 글자가 가장자리에 붙어 잘 못 읽어서 흰 여백을 둘러 준다
+  const pad = crop ? 32 : 0
   const canvas = document.createElement('canvas')
-  canvas.width = w; canvas.height = h
+  canvas.width = w + pad * 2; canvas.height = h + pad * 2
   const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
-  ctx.drawImage(bmp, 0, 0, w, h)
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(bmp, sx, sy, sw, sh, pad, pad, w, h)
   bmp.close?.()   // <img> 에는 close 가 없다
   return canvas
 }
@@ -66,15 +72,16 @@ async function prepare(file) {
 /**
  * 이미지 → 읽은 글자
  * onProgress({ stage: 'load' | 'read', pct })
+ * crop: 읽을 영역 { x, y, w, h } (0~1 비율, 없으면 전체)
  */
-export async function readImage(file, onProgress) {
+export async function readImage(file, onProgress, crop = null) {
   progressFn = (m) => {
     if (!onProgress) return
     if (m.status === 'recognizing text') onProgress({ stage: 'read', pct: Math.round(m.progress * 100) })
     else onProgress({ stage: 'load', pct: Math.round((m.progress || 0) * 100) })
   }
   try {
-    const [worker, canvas] = await Promise.all([getWorker(), prepare(file)])
+    const [worker, canvas] = await Promise.all([getWorker(), prepare(file, crop)])
     const { data } = await worker.recognize(canvas)
     return data.text || ''
   } finally {
