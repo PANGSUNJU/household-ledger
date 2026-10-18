@@ -5,7 +5,6 @@
     </ScreenHeader>
 
     <div class="body">
-      <p class="intro">카드번호·계좌번호는 저장하지 않아요. 알아보기 쉬운 이름만 정해 주세요. 위아래 화살표로 입력 화면의 순서를 바꿀 수 있어요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
       <section class="card" aria-label="사용 중인 결제수단">
@@ -27,7 +26,7 @@
       </section>
 
       <button v-if="hidden.length" type="button" class="hidden-toggle" :aria-expanded="showHidden" @click="showHidden = !showHidden">
-        숨긴 결제수단 {{ hidden.length }}개 <span class="muted">· 지난 기록은 그대로 남아요</span>
+        숨긴 결제수단 {{ hidden.length }}개
       </button>
       <section v-if="showHidden && hidden.length" class="card" aria-label="숨긴 결제수단">
         <ManageRow v-for="m in hidden" :key="m.id" :name="m.name" :movable="false">

@@ -36,22 +36,20 @@
         <span class="row-icon" style="background: #FFE6DA; color: #8E3F33"><AppIcon name="lock" :size="16" /></span>
         <span class="row-label two-line">
           <label for="lock-switch">화면 잠금</label>
-          <span class="muted small">앱을 열 때 숫자 4자리를 물어봐요</span>
         </span>
         <button
           id="lock-switch" type="button" role="switch" class="switch" :class="{ on: lock.enabled }"
           :aria-checked="lock.enabled" :disabled="busy" @click="toggleLock"
         ><span class="knob" /></button>
       </div>
-      <div class="row timeout" :class="{ disabled: !lock.enabled }">
+      <div v-if="lock.enabled" class="row timeout">
         <span class="row-label">다시 묻는 시간</span>
-        <div v-if="lock.enabled" class="times" role="radiogroup" aria-label="다시 묻는 시간">
+        <div class="times" role="radiogroup" aria-label="다시 묻는 시간">
           <button
             v-for="t in TIMEOUTS" :key="t.v" type="button" role="radio"
             :aria-checked="lock.timeout === t.v" :class="{ on: lock.timeout === t.v }" @click="chooseTimeout(t.v)"
           >{{ t.t }}</button>
         </div>
-        <span v-else class="muted small">잠금을 켜면 고를 수 있어요</span>
       </div>
       <p v-if="lockError" class="lock-error" role="alert">{{ lockError }}</p>
     </section>
@@ -64,7 +62,6 @@
           <span class="row-icon" style="background: #FFF1C7; color: #5E4710"><AppIcon name="calendar" :size="16" /></span>
           <span class="row-label two-line">
             <label for="remind-switch">주간 정리 알림</label>
-            <span class="muted small">정한 요일·시간에 일주일 치를 정리하자고 알려줘요</span>
           </span>
           <button
             id="remind-switch" type="button" role="switch" class="switch" :class="{ on: remind.remind_enabled }"
@@ -93,12 +90,10 @@
             </template>
             <template v-else-if="push.state === 'ready'">
               <button type="button" class="btn-push" :disabled="push.busy" @click="onPush">이 폰으로 알림 받기</button>
-              <p class="muted tiny">누르면 폰이 알림을 허용할지 물어봐요. 정한 시간에 폰 알림으로 알려줘요.</p>
             </template>
             <p v-else class="muted small">{{ pushHelp }}</p>
             <p v-if="push.msg" class="small" :class="{ 'lock-error': push.err }" role="status">{{ push.msg }}</p>
           </div>
-          <p class="muted tiny">알림을 못 받아도, 정한 시간이 지나 앱을 열면 앱 안에서 "이번 주 정리할까요?"를 보여줘요.</p>
           <details class="cal-alt">
             <summary>알림 대신 폰 캘린더에 넣기</summary>
             <div class="cal-btns">
@@ -116,7 +111,6 @@
         <span class="row-icon" style="background: #DCF1E6; color: #2E6A4E"><AppIcon name="list" :size="16" /></span>
         <span class="row-label two-line">
           <span>CSV로 내보내기</span>
-          <span class="muted small">엑셀에서 열 수 있어요. 백업용으로도 좋아요</span>
         </span>
         <AppIcon name="next" :size="18" class="chev" />
       </button>
@@ -138,7 +132,6 @@
         <div v-if="csv.kind === 'custom'" class="dates">
           <input v-model="csv.from" type="date" aria-label="시작 날짜"><span>~</span><input v-model="csv.to" type="date" aria-label="끝 날짜">
         </div>
-        <p class="muted small">열: 날짜, 종류(지출/수입/환불), 금액, 가게, 분류, 결제수단, 메모, 상태</p>
         <p v-if="csv.msg" class="small" :class="{ 'lock-error': csv.err }" role="status">{{ csv.msg }}</p>
         <button type="button" class="btn-primary" :disabled="csv.busy" @click="exportCsv">{{ csv.busy ? '만드는 중…' : '내려받기' }}</button>
       </div>
@@ -150,7 +143,7 @@
         :key="pinStep" ref="pad" :hint="pinStep === 1 ? '숫자 4자리' : '확인을 위해 같은 숫자를 한 번 더'"
         :error="pinError" :disabled="busy" @complete="onPin"
       />
-      <p class="muted small center">잊어버리면 로그아웃 후 다시 로그인해서 새로 정할 수 있어요.</p>
+      <p class="muted small center">잊으면 다시 로그인해서 새로 정해요</p>
     </BottomSheet>
   </main>
 </template>

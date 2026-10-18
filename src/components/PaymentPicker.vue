@@ -21,7 +21,6 @@
         <button type="button" class="ghost" @click="adding = false">취소</button>
         <button type="submit" class="ok" :disabled="!name.trim() || busy">등록</button>
       </div>
-      <p class="hint">카드번호·계좌번호는 저장하지 않아요. 알아보기 쉬운 이름만 정해 주세요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </form>
   </div>

@@ -5,9 +5,8 @@
     </ScreenHeader>
 
     <div class="body">
-      <p class="intro">여기 등록한 내역은 입력 화면의 '빠른 입력' 버튼으로 보여요. 누르면 금액·가게·분류·결제수단이 한 번에 채워져요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <p v-if="loaded && !items.length" class="intro">아직 없어요. 매일 같은 곳에서 쓰는 지출(예: 회사 앞 커피)을 등록해 보세요.</p>
+      <p v-if="loaded && !items.length" class="intro">자주 쓰는 지출을 등록하면 입력할 때 한 번에 채워져요</p>
 
       <section v-if="items.length" class="card" aria-label="등록된 빠른 입력">
         <ManageRow
@@ -36,7 +35,7 @@
           </div>
           <div class="col">
             <label for="q-amount" class="lbl">금액</label>
-            <input id="q-amount" v-model="sheet.amountText" class="box" type="text" inputmode="decimal" placeholder="4,500" required>
+            <input id="q-amount" v-model="sheet.amountText" v-comma class="box" type="text" inputmode="decimal" placeholder="4,500" required>
           </div>
         </div>
         <span v-if="sheet.amountText && sheetAmount === null" class="error">금액을 확인해 주세요</span>

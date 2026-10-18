@@ -3,6 +3,7 @@ import App from './App.vue'
 import router from './router'
 import { initAuth } from './lib/auth'
 import { initPwa } from './lib/pwa'
+import { commaDirective } from './lib/comma'
 import './styles/tokens.css'
 
 // 세션을 먼저 확인해야 첫 화면에서 로그인 여부를 판단할 수 있다
@@ -13,5 +14,5 @@ initPwa()
 initAuth()
   .catch((e) => console.error('로그인 확인 실패', e))
   .finally(() => {
-    createApp(App).use(router).mount('#app')
+    createApp(App).use(router).directive('comma', commaDirective).mount('#app')
   })

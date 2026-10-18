@@ -8,7 +8,6 @@
       <p v-if="setupMissing" class="notice" role="alert">
         고정 항목을 쓰려면 Supabase <b>SQL Editor</b>에서 <code>supabase/migrations/0002_recurring.sql</code> 내용을 한 번 실행해 주세요.
       </p>
-      <p v-else class="intro">매달 같은 날 나가고 들어오는 돈을 등록해 두면, 그날 앱을 열 때 자동으로 기록돼요. 그날이 주말이면 앞·뒤 평일로 옮기거나 그날 그대로 둘 수 있어요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
       <!-- 이번 달 고정 지출 -->
@@ -28,7 +27,6 @@
       <!-- 금액 입력 필요 모아보기 -->
       <section v-if="needs.length" class="card needs" aria-label="금액을 넣어야 하는 기록">
         <h2>금액을 넣어 주세요 <span class="count">{{ needs.length }}건</span></h2>
-        <p class="muted small">매달 금액이 다른 고정 지출이에요. 눌러서 이번 금액을 넣으면 통계에 들어가요.</p>
         <TxRow v-for="t in needs" :key="t.id" :tx="t" class="need-row" />
       </section>
 
@@ -92,11 +90,10 @@
           <button type="button" role="radio" :aria-checked="!sheet.fixed" :class="{ on: !sheet.fixed }" @click="sheet.fixed = false">매달 다름</button>
         </div>
         <template v-if="sheet.fixed">
-          <input id="r-amount" v-model="sheet.amountText" class="box" type="text" inputmode="decimal" placeholder="금액 (예: 55000)" aria-label="금액">
+          <input id="r-amount" v-model="sheet.amountText" v-comma class="box" type="text" inputmode="decimal" placeholder="예: 55,000" aria-label="금액">
           <span v-if="sheet.amountText && sheetAmount === null" class="error">금액을 확인해 주세요</span>
-          <span v-else-if="sheetAmount" class="muted small">{{ won(sheetAmount) }}원</span>
         </template>
-        <p v-else class="muted small hint">날짜가 되면 '금액 입력 필요'로 기록돼요. 고지서가 나오면 금액만 넣으면 돼요. (전기·가스요금, 카드값 등)</p>
+        <p v-else class="muted small hint">금액은 고지서가 나오면 넣어요</p>
 
         <label for="r-day" class="lbl">매달</label>
         <select id="r-day" v-model.number="sheet.day" class="box">
@@ -109,7 +106,6 @@
             :aria-checked="sheet.rule === r.value" :class="{ on: sheet.rule === r.value }" @click="sheet.rule = r.value"
           >{{ r.label }}</button>
         </div>
-        <span class="muted small">{{ sheet.kind === 'income' ? '월급은 보통 주말이면 앞 금요일에 들어와요.' : '자동이체는 보통 뒤 월요일, 카드 자동결제·구독은 주말에도 그날 나가요.' }}</span>
 
         <span class="lbl">분류</span>
         <CategoryGrid v-model="sheet.category_id" :categories="kindCats" />
@@ -127,7 +123,7 @@
         <input id="r-start" v-model="sheet.start" class="box" type="date" :max="maxStart" required>
 
         <p class="preview" aria-live="polite">{{ previewText }}</p>
-        <p v-if="sheet.id" class="muted small">바꾼 금액·날짜는 다음 회차부터 적용돼요. 이미 들어간 기록은 그대로예요.</p>
+        <p v-if="sheet.id" class="muted small">다음 회차부터 바뀌어요</p>
         <p v-if="sheetError" class="error" role="alert">{{ sheetError }}</p>
 
         <button type="submit" class="btn-primary" :disabled="!canSave || busy">{{ busy ? '저장하는 중…' : (sheet.id ? '저장' : '추가') }}</button>

@@ -8,7 +8,7 @@
 
     <section v-if="showRemind" class="card remind" aria-label="주간 정리 안내">
       <strong>이번 주 정리할까요?</strong>
-      <span class="muted small">카드 앱 이용내역을 캡처해서 올리면 한 번에 들어가요.<template v-if="needCount"> 금액 입력이 필요한 고정 지출 {{ needCount }}건도 있어요.</template></span>
+      <span v-if="needCount" class="muted small">금액 넣을 고정 지출 {{ needCount }}건</span>
       <div class="remind-btns">
         <router-link to="/capture" class="r-go">캡처로 정리하기</router-link>
         <router-link v-if="needCount" to="/settings/recurring" class="r-sub">금액 넣기</router-link>
@@ -65,7 +65,7 @@
       </div>
       <p v-if="loading" class="muted empty-msg">불러오는 중…</p>
       <p v-else-if="error" class="error empty-msg">{{ error }}</p>
-      <p v-else-if="!selectedTxs.length && !selectedPlans.length" class="muted empty-msg">기록이 없어요. + 버튼으로 추가해 보세요.</p>
+      <p v-else-if="!selectedTxs.length && !selectedPlans.length" class="muted empty-msg">기록이 없어요</p>
       <TxRow v-for="t in selectedTxs" :key="t.id" :tx="t" class="tx" :class="{ need: t.status === 'needs_amount' }" />
       <!-- 아직 날짜가 안 된 고정 항목 (예정) -->
       <router-link v-for="p in selectedPlans" :key="p.item.id" to="/settings/recurring" class="tx plan-row">
