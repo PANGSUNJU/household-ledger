@@ -109,6 +109,7 @@
           <p v-if="it.memo && it.checked" class="memo muted small">{{ it.memo }}</p>
 
           <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">금액이 너무 커요. 금액을 고쳐 주세요 (10억 원까지)</p>
+          <p v-if="!it.date && it.kind !== 'cancel'" class="warn">날짜를 못 읽었어요 (캡처 위쪽 날짜가 잘렸어요). 날짜를 넣고 체크해 주세요</p>
           <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·가게 기록이 이미 있어요</p>
           <div v-if="it.kind === 'cancel'" class="info">
             <span>취소 건이라 빼뒀어요</span>
@@ -334,7 +335,7 @@ export default {
         g.items.push({
           id: ++seq, raw, store: this.aliases[raw] || raw, date: f.date > today ? today : f.date,
           amount: f.amount, kind: f.kind, memo: f.memo || '',
-          checked: f.kind === 'expense', category_id: null, allCats: false, dup: false, match: null
+          checked: f.kind === 'expense' && !f.noDate, category_id: null, allCats: false, dup: false, match: null
         })
       }
       // 이미지 원본은 쓰지 않으므로 바로 버린다 (작은 미리보기만 이 화면에서 잠깐 보여준다)

@@ -45,8 +45,8 @@ export function findDate(line, today, defaultYear = null) {
     const d = validDate(y, Number(m[2]), Number(m[3]))
     if (d) return d
   }
-  // 10월 15일
-  m = line.match(/(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*일/)
+  // 10월 15일 (줄 맨 앞이면 '월'이 빠지게 읽혀도: '10 15일')
+  m = line.match(/(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*일/) || line.match(/^(\d{1,2})\s+(\d{1,2})\s*일\s*(\([^)]{1,3}\))?$/)
   // 10.15 (목) / 10/15 / 10.15
   if (!m) m = line.match(/(?<![\d,.:])(\d{1,2})[./](\d{1,2})(?![\d,]|\.\d)(?=\s*(\(|$|\s|[가-힣]))/)
   if (m) {
@@ -74,7 +74,8 @@ function toNumber(s) {
   return Number.isFinite(n) ? n : null
 }
 
-const AMOUNT_WON = /([+-])?\s?(\d{1,3}(?:[,;.]\d{3})+|\d{1,9})\s?원/g
+// 부호는 맨 앞이나 빈칸 뒤에 홀로 있을 때만 (말줄임 'SU…' 가 'SU---' 로 읽혀 빼기로 보이는 것 막기)
+const AMOUNT_WON = /(?:(?<=^|[\s(])([+-])\s?)?(?<!\d|\d[,.])0*(\d{1,3}(?:[,;.]\d{3})+|\d{1,9})\s?원/g
 const AMOUNT_BARE = /(^|\s)([+-])?(\d{1,3}(?:[,]\d{3})+)(?=\s*$|\s)/g
 
 /** 줄 안의 금액들 → [{ sign, value, index, raw }] (원 표시가 있는 것 우선) */
@@ -96,7 +97,8 @@ export function findAmounts(line, { needWon = true } = {}) {
 // 기록이 아닌 줄 (합계·잔액·한도 등)
 const SKIP = /(잔액|누적|한도|포인트|적립|이용\s?금액|총\s?금액|합\s?계|결제\s?예정|청구|이번\s?달|출금\s?가능|사용\s?가능|명세서)/
 // 가게 이름에서 빼는 말
-const META_WORDS = /(일시불|할부\s?\d*\s?(개월)?|승인\s?취소|승인|결제\s?취소|취소|체크|신용|해외|국내|매입|가승인|\d+개월)/g
+// (체크·신용·해외·국내·매입은 따로 떨어진 낱말일 때만: '체크카드 복권 당첨' 은 그대로)
+const META_WORDS = /(일시불|할부\s?\d*\s?(개월)?|승인\s?취소|승인|결제\s?취소|취소|(체크|신용|해외|국내|매입)(?![가-힣])|가승인|\d+개월)/g
 const CANCEL = /(취소|환불|반품)/
 const TIME = /(?<!\d)\d{1,2}:\d{2}(:\d{2})?(?!\d)/g
 const DATE_ANY = /(\d{2,4}\s*[.\-/년]\s*)?\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?(\s*\([^)]{1,3}\))?/g
@@ -110,10 +112,33 @@ export function cleanStore(s) {
     .replace(DATE_ANY, ' ')
     .replace(META_WORDS, ' ')
     .replace(/[·|>›»]/g, ' ')
-    .replace(/^[\s\-–:,.]+|[\s\-–:,.]+$/g, '')
+    .replace(/^[\s\-–:,.=~]+|[\s\-–:,.=~]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, 50)
+}
+
+/**
+ * 이름 맨 앞에 붙은 아이콘 찌꺼기 지우기
+ *  앱 목록의 동그란 아이콘이 'w', 'oO', '6)', '(7)', 'ㅜㅠ]' 같은 글자로 읽혀 이름 앞에 붙는다
+ */
+export function stripIcon(store) {
+  let s = store
+  for (let k = 0; k < 2; k++) {
+    const m = s.match(/^(\S{1,4})\s+(.+)$/)
+    if (!m) break
+    const [, tok, rest] = m
+    const noise =
+      (tok.length === 1 && !/[가-힣]/.test(tok)) ||                                   // w, 1, |, -
+      (!/[가-힣]/.test(tok) && /[()[\]{}|=©®@#~<>"'ㄱ-ㅣ]/.test(tok)) ||               // 6) (7) lw) b's ㅜㅠ]
+      /^(?=.*[a-z])[A-Za-z]{2}$/.test(tok) ||                                           // oO es
+      /^[을를로은는의][^가-힣\s]*$/.test(tok) || /^[가-힣][.,:;'`]$/.test(tok)            // '을 자금', '로. 김철수' (이름은 조사로 시작하지 않는다)
+    if (!noise || (rest.match(/[가-힣A-Za-z0-9]/g) || []).length < 2) break
+    s = rest
+  }
+  // 한글 없이 짧은 소문자 섞인 영어 조각뿐이면 아이콘을 읽은 것 ('oO r', 'Eu') → 비워 두고 직접 넣게
+  if (/^(?=.*[a-z])[A-Za-z]{1,2}(\s[A-Za-z]{1,2})*$/.test(s)) return ''
+  return s
 }
 
 /**
@@ -121,6 +146,8 @@ export function cleanStore(s) {
  *  · 카드 앱: 부호 없는 금액 = 지출, '-' 이거나 '취소'가 붙으면 결제 취소
  *  · 은행 앱(+/- 가 붙음): '-' = 지출(출금), '+' = 입금
  *  · 날짜는 위쪽 날짜 머리글을 따른다. 날짜를 못 찾으면 오늘
+ *  · 은행 앱에서 '시간 + 부호 없는 금액' 줄은 잔액이라 뺀다 (토스: '19:18  994원')
+ *  · 첫 날짜 머리글 위쪽인데 이름·금액이 있는 줄(캡처 위가 잘린 경우)은 noDate: true 로 넣는다
  */
 export function parseCapture(text, today) {
   const items = captureItems(text, today, true)
@@ -142,15 +169,22 @@ function captureItems(text, today, needDate) {
     if (date && !amounts.length) { curDate = date; continue }
     if (date) curDate = date
     if (!amounts.length) continue
-    // 첫 날짜 머리글 위쪽(계좌 잔액·카드 이름 등)은 기록이 아니다
-    if (needDate && !curDate) continue
 
     const a = amounts[amounts.length - 1]   // 줄 맨 오른쪽 금액
-    let store = cleanStore(l.slice(0, a.index) + ' ' + l.slice(a.index + a.raw.length))
+    let store = stripIcon(cleanStore(l.slice(0, a.index) + ' ' + l.slice(a.index + a.raw.length)))
+    const named = (store.match(/[가-힣A-Za-z]/g) || []).length >= 2
+    // 은행 앱: 이름 없이 부호 없는 금액만 있는 줄 = 바로 위 기록의 잔액
+    if (bankStyle && !a.sign && !named) continue
+    // 첫 날짜 머리글 위쪽: 계좌 잔액·카드 이름 등은 빼고, 이름 있는 기록만 '날짜 확인'으로
+    let noDate = false
+    if (needDate && !curDate) {
+      if (!named || !dateBelow(all, i)) continue
+      noDate = true
+    }
     // 가게 이름이 비면 바로 윗줄 (날짜·금액 없는 줄)
     if (!store && i > 0 && !all[i - 1].amounts.length && !all[i - 1].date) {
       const prev = cleanStore(all[i - 1].l)
-      if ((prev.match(/[가-힣A-Za-z0-9]/g) || []).length >= 2) store = prev
+      if ((prev.match(/[가-힣A-Za-z0-9]/g) || []).length >= 2) store = stripIcon(prev)
     }
 
     // 아랫줄들(다음 금액·날짜 줄 전까지)에 '취소'가 있는지
@@ -162,9 +196,15 @@ function captureItems(text, today, needDate) {
     else if (a.sign === '-') kind = 'cancel'
     if (CANCEL.test(ctx)) kind = 'cancel'
 
-    items.push({ date: curDate || today, store, amount: a.value, kind, raw: l })
+    items.push({ date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}) })
   }
   return items
+}
+
+/** 아래쪽에 날짜 머리글이 있는지 (위가 잘린 목록인지) */
+function dateBelow(all, i) {
+  for (let j = i + 1; j < all.length; j++) if (all[j].date && !all[j].amounts.length) return true
+  return false
 }
 
 // 영수증: 합계 줄 (앞에 있는 것이 우선)
