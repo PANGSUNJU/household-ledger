@@ -35,7 +35,7 @@
       </form>
 
       <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <p class="note">카카오와 구글은 서로 다른 가계부로 저장돼요.<br>쓰던 방식으로 로그인해 주세요.</p>
+      <p class="note">카카오·구글은 서로 다른 가계부예요</p>
     </div>
   </main>
 </template>

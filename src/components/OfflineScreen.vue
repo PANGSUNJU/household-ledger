@@ -4,7 +4,7 @@
     <h1>인터넷 연결이 필요해요</h1>
     <p>와이파이나 데이터가 켜져 있는지 확인해 주세요.<br>연결되면 바로 이어서 쓸 수 있어요.</p>
     <button type="button" class="btn-primary" @click="$emit('retry')">다시 시도</button>
-    <div class="note">쓰던 도중에 끊기면, 입력하던 내용은 그대로 남겨둘게요.</div>
+    <div class="note">입력하던 내용은 그대로 남아 있어요</div>
   </div>
 </template>
 

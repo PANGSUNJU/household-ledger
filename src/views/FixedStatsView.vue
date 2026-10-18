@@ -69,7 +69,7 @@
             금액을 아직 안 넣은 항목 {{ cur.needs }}건 — 넣으면 합계에 더해지고 지난달과 비교해 드려요 →
           </router-link>
 
-          <p v-if="!cur.rows.length" class="muted small empty-month">이 달에는 고정 항목에서 들어온 지출이 없어요.</p>
+          <p v-if="!cur.rows.length" class="muted small empty-month">고정 지출이 없어요</p>
           <ul class="rows">
             <li v-for="r in cur.rows" :key="r.key" class="row" :class="{ planned: r.planned }">
               <span class="tile" :style="{ background: r.color }" aria-hidden="true" />

@@ -12,20 +12,18 @@
       <div class="meter" role="progressbar" :aria-valuenow="Math.round(pct)" aria-valuemin="0" aria-valuemax="100" :aria-label="`예산의 ${Math.round(pct)}% 사용`">
         <span class="fill" :class="{ over: left < 0 }" :style="{ width: Math.min(100, pct) + '%' }" />
       </div>
-      <span class="muted tiny">쓴 돈 {{ won(spent) }}원 · 저축/투자와 금액 입력 필요는 빼고 계산해요</span>
+      <span class="muted tiny">쓴 돈 {{ won(spent) }}원</span>
     </template>
     <button v-else type="button" class="set" @click="openSheet">
-      <span><b>{{ m }}월 예산 정하기</b><span class="muted tiny"> · 남은 돈과 하루에 쓸 수 있는 돈을 알려줘요</span></span>
+      <span><b>{{ m }}월 예산 정하기</b></span>
       <span aria-hidden="true">→</span>
     </button>
 
     <BottomSheet :open="sheet" :title="`${m}월 예산`" @close="sheet = false">
       <form class="sheet-form" @submit.prevent="save">
-        <label for="budget-amount" class="lbl">한 달에 쓸 돈 (저축/투자 빼고)</label>
-        <input id="budget-amount" v-model="amountText" class="box" type="text" inputmode="decimal" placeholder="예: 1000000">
-        <span v-if="amount" class="muted small">{{ won(amount) }}원 · 매달 1일 ~ 말일</span>
-        <span v-else-if="amountText" class="error">금액을 확인해 주세요</span>
-        <p class="muted small">다음 달에 따로 정하지 않으면 이 금액을 그대로 써요.</p>
+        <label for="budget-amount" class="lbl">한 달에 쓸 돈</label>
+        <input id="budget-amount" v-model="amountText" v-comma class="box" type="text" inputmode="decimal" placeholder="예: 1,000,000">
+        <span v-if="amountText && !amount" class="error">금액을 확인해 주세요</span>
         <p v-if="err" class="error" role="alert">{{ err }}</p>
         <button type="submit" class="btn-primary" :disabled="!amount || busy">{{ busy ? '저장하는 중…' : '저장' }}</button>
         <button v-if="budget && !budget.inherited" type="button" class="mini danger" :disabled="busy" @click="remove">{{ m }}월 예산 지우기</button>

@@ -24,7 +24,7 @@
 
     <template v-else>
       <section class="card summary" aria-label="이번 달 요약">
-        <span class="muted small">{{ periodName }} 지출 <span class="tiny">(환불 반영)</span></span>
+        <span class="muted small">{{ periodName }} 지출</span>
         <strong class="big">{{ won(now.spent) }}원</strong>
         <span v-if="diffText" class="badge" :class="diff > 0 ? 'up' : 'down'">{{ diffText }}</span>
         <div class="lines">
@@ -61,7 +61,6 @@
         <span class="fl-icon" aria-hidden="true"><AppIcon name="repeat" :size="18" /></span>
         <span class="fl-main">
           <strong>고정비 달마다 보기</strong>
-          <span class="muted tiny">보험료·통신비처럼 매달 나가는 돈이 달마다 얼마였는지</span>
         </span>
         <AppIcon name="next" :size="18" class="chev" />
       </router-link>

@@ -21,16 +21,16 @@
         </label>
         <label class="crop-opt">
           <input v-model="askCrop" type="checkbox" @change="saveCropOpt">
-          <span>읽기 전에 영역 자르기 <span class="muted small">(이용내역 부분만 남기면 더 정확해요)</span></span>
+          <span>읽기 전에 영역 자르기</span>
         </label>
-        <p class="safe">이미지는 이 기기 안에서만 읽고 서버에 올리거나 저장하지 않아요. 카드번호·카드사는 읽지 않아요.</p>
+        <p class="safe">이미지는 폰 안에서만 읽고 저장하지 않아요</p>
       </div>
 
       <!-- 1-2. 영역 자르기 -->
       <section v-if="cropping" class="cropping" aria-label="읽을 영역 고르기">
         <div class="crop-head">
           <strong>읽을 부분만 남겨 주세요</strong>
-          <span class="muted small">{{ cropping.tag }}모서리를 끌어 조절 · 상자를 끌어 옮기기 · 바깥을 끌면 새로 그리기</span>
+          <span v-if="cropping.tag" class="muted small">{{ cropping.tag.replace(/ · $/, '') }}</span>
         </div>
         <CropBox v-model="cropping.rect" :src="cropping.url" />
         <div class="crop-btns">
@@ -54,7 +54,7 @@
           <img v-if="g.thumb" :src="g.thumb" alt="" class="thumb">
           <div class="gh-text">
             <strong>{{ g.mode === 'capture' ? `카드·은행 앱 캡처 ${gi + 1}` : '영수증' }}</strong>
-            <span class="muted small">{{ g.items.length ? `날짜·가게·금액을 읽었어요. ${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
+            <span class="muted small">{{ g.items.length ? `${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
           </div>
         </section>
 
@@ -62,7 +62,7 @@
         <section v-if="g.mode === 'receipt' && g.receipt?.canceled" class="card cancel-receipt">
           <strong>취소·환불 영수증이에요</strong>
           <span class="muted small">{{ g.receipt.store || '가게 모름' }} · {{ label(g.receipt.date) }} · {{ won(g.receipt.amount || 0) }}원</span>
-          <p v-if="!g.matches.length" class="muted small">같은 가게·금액의 구매를 찾지 못했어요. 입력 화면에서 직접 고를 수 있어요.</p>
+          <p v-if="!g.matches.length" class="muted small">같은 구매를 못 찾았어요</p>
           <button
             v-for="t in g.matches" :key="t.id" type="button" class="match" @click="toRefund(g.receipt, t)"
           >
@@ -93,7 +93,10 @@
             <label class="amt">
               <span class="sr-only">금액</span>
               <span class="sign" aria-hidden="true">{{ it.kind === 'income' ? '+' : it.kind === 'cancel' ? '' : '-' }}</span>
-              <input v-model.number="it.amount" type="number" inputmode="numeric" min="1" :class="{ income: it.kind === 'income' }">
+              <input
+                v-comma :value="won(it.amount)" type="text" inputmode="numeric" :class="{ income: it.kind === 'income' }"
+                @input="it.amount = calcAmount($event.target.value)"
+              >
             </label>
           </div>
 
@@ -108,14 +111,14 @@
           </div>
           <p v-if="it.memo && it.checked" class="memo muted small">{{ it.memo }}</p>
 
-          <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">금액이 너무 커요. 금액을 고쳐 주세요 (10억 원까지)</p>
-          <p v-if="!it.date && it.kind !== 'cancel'" class="warn">날짜를 못 읽었어요 (캡처 위쪽 날짜가 잘렸어요). 날짜를 넣고 체크해 주세요</p>
+          <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">10억 원까지 넣을 수 있어요</p>
+          <p v-if="!it.date && it.kind !== 'cancel'" class="warn">날짜를 넣어 주세요</p>
           <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·가게 기록이 이미 있어요</p>
           <div v-if="it.kind === 'cancel'" class="info">
             <span>취소 건이라 빼뒀어요</span>
             <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
           </div>
-          <p v-if="it.kind === 'income' && !it.checked" class="info small-info">입금 건이라 빼뒀어요. 체크하면 수입으로 기록해요.</p>
+          <p v-if="it.kind === 'income' && !it.checked" class="info small-info">입금이라 빼뒀어요</p>
         </article>
 
         <div v-if="g.items.length" class="pm">
@@ -158,7 +161,7 @@ import { readImage, closeReader } from '@/lib/ocr'
 import { holdLock } from '@/lib/lock'
 import { parseCapture, parseReceipt, guessCategoryName } from '@/lib/ocr-parse'
 import { todayKST, label, addDays } from '@/lib/date'
-import { won, MAX_AMOUNT } from '@/lib/money'
+import { won, calcAmount, MAX_AMOUNT } from '@/lib/money'
 
 let seq = 0
 
@@ -215,7 +218,7 @@ export default {
     closeReader()
   },
   methods: {
-    won, label, holdLock,
+    won, calcAmount, label, holdLock,
     catsFor(it) { return this.categories.filter((c) => c.kind === (it.kind === 'income' ? 'income' : 'expense') && !c.is_refund) },
     visibleCats(it) {
       const all = this.catsFor(it)

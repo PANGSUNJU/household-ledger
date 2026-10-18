@@ -43,7 +43,7 @@
         <div><span>돌려받은 돈</span><strong class="amount-income">{{ refundAmount ? won(refundAmount) : '–' }}</strong></div>
         <div><span>수수료</span><strong :class="fee > 0 ? 'amount-expense' : ''">{{ fee === null ? '–' : won(fee) }}</strong></div>
       </div>
-      <p v-if="original && overRefund" class="note warn">돌려받은 돈이 원래 금액보다 많아요. 금액을 확인해 주세요.</p>
+      <p v-if="original && overRefund" class="note warn">원래 금액보다 많아요</p>
       <p v-else-if="original && refundAmount" class="note">
         {{ original.category?.name || '미분류' }}에서 {{ won(refundAmount) }}원을 빼고,
         {{ fee > 0 ? `수수료 ${won(fee)}원만 쓴 돈으로 남아요.` : '쓴 돈이 남지 않아요.' }}
@@ -54,7 +54,7 @@
 
     <!-- 원래 구매가 기록에 없을 때: 빼는 지출 분류를 직접 고른다 -->
     <template v-else>
-      <p class="note">원래 구매가 기록에 없으면, 어느 지출에서 뺄지 골라 주세요.</p>
+      <p class="note">원래 구매가 없으면 뺄 지출을 골라 주세요</p>
       <CategoryGrid
         :categories="expenseCategories" :model-value="manualCategoryId" label="빼는 지출 분류"
         @update:model-value="$emit('update:manualCategoryId', $event)"

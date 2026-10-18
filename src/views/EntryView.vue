@@ -24,7 +24,7 @@
         <label for="amount" class="lbl">{{ isRefund ? '돌려받은 금액' : '금액' }}</label>
         <div class="amount-row" :class="{ invalid: amountText && amount === null }">
           <input
-            id="amount" ref="amount" v-model="amountText" type="text" inputmode="decimal"
+            id="amount" ref="amount" v-model="amountText" v-comma type="text" inputmode="decimal"
             autocomplete="off" placeholder="0" aria-describedby="amount-help"
           >
           <span v-if="showResult" class="result">= {{ won(amount) }}원</span>
@@ -65,7 +65,7 @@
 
       <!-- 분류 -->
       <div class="field">
-        <span class="lbl">분류 <span class="sub">{{ categoryId ? '' : '· 안 고르면 미분류' }}</span></span>
+        <span class="lbl">분류</span>
         <CategoryGrid
           v-model="categoryId" :categories="kind === 'expense' ? expenseCategories : incomeCategories"
           @update:model-value="touched.category = true"

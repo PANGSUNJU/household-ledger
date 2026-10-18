@@ -9,7 +9,6 @@
         <button type="button" role="tab" :aria-selected="kind === 'expense'" :class="{ on: kind === 'expense' }" @click="kind = 'expense'">지출 {{ count('expense') }}</button>
         <button type="button" role="tab" :aria-selected="kind === 'income'" :class="{ on: kind === 'income' }" @click="kind = 'income'">수입 {{ count('income') }}</button>
       </div>
-      <p class="intro">위아래 화살표로 순서를 바꾸면 입력 화면 버튼 순서도 바뀌어요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
       <section class="card" :aria-label="(kind === 'expense' ? '지출' : '수입') + ' 분류'">
@@ -30,7 +29,7 @@
       </section>
 
       <button v-if="hidden.length" type="button" class="hidden-toggle" :aria-expanded="showHidden" @click="showHidden = !showHidden">
-        숨긴 분류 {{ hidden.length }}개 <span class="muted">· 지난 기록은 그대로 남아요</span>
+        숨긴 분류 {{ hidden.length }}개
       </button>
       <section v-if="showHidden && hidden.length" class="card" aria-label="숨긴 분류">
         <ManageRow v-for="c in hidden" :key="c.id" :name="c.name" :movable="false">
@@ -40,7 +39,7 @@
         </ManageRow>
       </section>
 
-      <div class="notice">수입의 '환불' 분류는 통계 계산에 쓰여서 지우거나 숨길 수 없어요. '저축/투자'는 지출로 기록되지만 예산 계산에서는 빠져요.</div>
+      <div class="notice">'환불' 분류는 지울 수 없어요</div>
     </div>
 
     <BottomSheet :open="sheet.open" :title="sheet.id ? '분류 수정' : (kind === 'expense' ? '지출 분류 추가' : '수입 분류 추가')" @close="sheet.open = false">
