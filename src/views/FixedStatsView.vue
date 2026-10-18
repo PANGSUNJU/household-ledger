@@ -87,10 +87,9 @@
           </ul>
 
           <div v-if="cur.savings || cur.income" class="lines">
-            <div v-if="cur.savings"><span class="muted">고정 저축/투자</span><b class="savings">{{ won(cur.savings) }}원</b></div>
+            <div v-if="cur.savings"><span class="muted">그중 저축/투자</span><b class="savings">{{ won(cur.savings) }}원</b></div>
             <div v-if="cur.income"><span class="muted">고정 수입</span><b class="amount-income">{{ won(cur.income) }}원</b></div>
           </div>
-          <p class="muted tiny note">고정 항목에서 자동으로 들어온 기록만 모았어요. 저축/투자 분류는 고정비 합계에서 빼고 따로 보여줘요.</p>
         </section>
       </template>
     </div>
@@ -110,7 +109,7 @@ import { upcoming, isMissingSetup } from '@/lib/recurring'
  *  · 고정 항목에서 만들어진 기록(source = recurring)을 회차(recurring_month) 기준으로 모은다
  *  · 확정 기록만 합계에. '금액 입력 필요'는 개수로 따로 알려준다 (SPEC 5-3)
  *  · 이번 달은 아직 날짜가 안 된 회차를 '예정'으로 더해 보여준다 (금액 고정인 것만)
- *  · 저축/투자 분류는 통계와 같은 규칙으로 고정비 합계에서 뺀다
+ *  · 저축/투자 분류도 지출로 합계에 넣고, 그중 얼마인지 따로 보여준다 (통계와 같은 규칙)
  */
 export default {
   name: 'FixedStatsView',
@@ -153,7 +152,7 @@ export default {
         if (t.kind === 'income') { if (t.status === 'confirmed') mo.income += t.amount; continue }
         const item = this.itemMap[t.recurring_item_id]
         const cat = t.category || this.catMap[item?.category_id]
-        if (cat?.is_savings) { if (t.status === 'confirmed') mo.savings += t.amount; continue }
+        if (cat?.is_savings && t.status === 'confirmed') mo.savings += t.amount
         const needs = t.status === 'needs_amount'
         if (needs) mo.needs += 1
         else mo.done += t.amount
@@ -172,7 +171,7 @@ export default {
       for (const o of upcoming(this.items, this.today, end, this.today)) {
         if (o.month !== thisMo.key || o.item.kind !== 'expense') continue
         const cat = this.catMap[o.item.category_id]
-        if (cat?.is_savings) { if (o.item.is_amount_fixed) thisMo.savings += o.item.amount; continue }
+        if (cat?.is_savings && o.item.is_amount_fixed) thisMo.savings += o.item.amount
         // 금액이 매달 다른 예정은 합계에 못 넣고 목록에만 '예정'으로 보여준다
         if (o.item.is_amount_fixed) thisMo.planned += o.item.amount
         thisMo.byKey.set(o.item.id, {

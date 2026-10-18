@@ -22,7 +22,7 @@
 
     <section class="card summary" aria-label="이번 달 요약">
       <div>
-        <span class="muted">{{ m }}월 쓴 돈</span>
+        <span class="muted">{{ m }}월 지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
       </div>
       <div class="divider">
@@ -31,7 +31,7 @@
       </div>
     </section>
 
-    <BudgetCard :key="y + '-' + m" :y="y" :m="m" :spent="summary.spent" class="budget-card" />
+    <BudgetCard :key="y + '-' + m" :y="y" :m="m" :spent="summary.budgetSpent" class="budget-card" />
 
     <section class="card grid-wrap" aria-label="달력">
       <div class="weekdays">
