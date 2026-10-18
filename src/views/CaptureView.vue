@@ -19,11 +19,29 @@
           <span>{{ mode === 'capture' ? '캡처 고르기 (여러 장 가능)' : '영수증 사진 고르기' }}</span>
           <input ref="file" type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @click="holdLock()" @change="onFiles">
         </label>
+        <label class="crop-opt">
+          <input v-model="askCrop" type="checkbox" @change="saveCropOpt">
+          <span>읽기 전에 영역 자르기 <span class="muted small">(이용내역 부분만 남기면 더 정확해요)</span></span>
+        </label>
         <p class="safe">이미지는 이 기기 안에서만 읽고 서버에 올리거나 저장하지 않아요. 카드번호·카드사는 읽지 않아요.</p>
       </div>
 
+      <!-- 1-2. 영역 자르기 -->
+      <section v-if="cropping" class="cropping" aria-label="읽을 영역 고르기">
+        <div class="crop-head">
+          <strong>읽을 부분만 남겨 주세요</strong>
+          <span class="muted small">{{ cropping.tag }}모서리를 끌어 조절 · 상자를 끌어 옮기기 · 바깥을 끌면 새로 그리기</span>
+        </div>
+        <CropBox v-model="cropping.rect" :src="cropping.url" />
+        <div class="crop-btns">
+          <button type="button" class="btn-primary" @click="finishCrop('crop')">이 부분 읽기</button>
+          <button type="button" class="ghost-btn" @click="finishCrop('all')">자르지 않고 전체 읽기</button>
+          <button type="button" class="text-btn" @click="finishCrop('skip')">이 이미지 빼기</button>
+        </div>
+      </section>
+
       <!-- 2. 읽는 중 -->
-      <div v-if="reading" class="reading" role="status" aria-live="polite">
+      <div v-if="reading && !cropping" class="reading" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true" />
         <strong>{{ readingText }}</strong>
         <span class="muted small">{{ firstLoad ? '처음 한 번은 글자 읽기 도구를 받느라 10~20초쯤 걸려요.' : '잠시만요.' }}</span>
@@ -111,7 +129,7 @@
         </div>
       </template>
 
-      <label v-if="groups.length && !reading" class="pick more-pick">
+      <label v-if="groups.length && !reading && !cropping" class="pick more-pick">
         <AppIcon name="plus" :size="18" />
         <span>{{ mode === 'capture' ? '캡처 더 올리기' : '영수증 더 올리기' }}</span>
         <input type="file" accept="image/*" :multiple="mode === 'capture'" class="sr-only" @click="holdLock()" @change="onFiles">
@@ -130,6 +148,7 @@
 <script>
 import ScreenHeader from '@/components/ScreenHeader.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import CropBox from '@/components/CropBox.vue'
 import {
   listCategories, listPaymentMethods, lastPaymentMethodId, lastExpenseAtStore, recentExpenses,
   listStoreAliases, saveStoreAliases, findSameTransactions, saveTransactions
@@ -142,6 +161,11 @@ import { won, MAX_AMOUNT } from '@/lib/money'
 
 let seq = 0
 
+/** '읽기 전에 영역 자르기' 선택 기억 (처음엔 켜짐) */
+function readCropOpt() {
+  try { return localStorage.getItem('ledger.askCrop') !== '0' } catch { return true }
+}
+
 /*
  * 캡처·영수증으로 입력 (SPEC 5-7, 10-A)
  *  1. 이미지를 고르면 기기 안에서 글자를 읽는다 (lib/ocr.js)
@@ -153,13 +177,14 @@ let seq = 0
  */
 export default {
   name: 'CaptureView',
-  components: { ScreenHeader, AppIcon },
+  components: { ScreenHeader, AppIcon, CropBox },
   data() {
     return {
       mode: this.$route.query.mode === 'receipt' ? 'receipt' : 'capture',
       groups: [], categories: [], methods: [], aliases: {}, defaultPm: null,
       reading: false, readingText: '', firstLoad: true, error: '',
-      saving: false, saveError: '', MAX_AMOUNT
+      saving: false, saveError: '', MAX_AMOUNT,
+      askCrop: readCropOpt(), cropping: null
     }
   },
   computed: {
@@ -184,6 +209,7 @@ export default {
     if (this.$route.query.shared) await this.takeShared()
   },
   beforeUnmount() {
+    if (this.cropping) { URL.revokeObjectURL(this.cropping.url); this.cropping.resolve('skip') }
     for (const g of this.groups) if (g.thumb) URL.revokeObjectURL(g.thumb)
     closeReader()
   },
@@ -236,16 +262,41 @@ export default {
       }
     },
 
+    saveCropOpt() {
+      try { localStorage.setItem('ledger.askCrop', this.askCrop ? '1' : '0') } catch { /* 저장 못 함 */ }
+    },
+
+    /** 영역 자르기 화면을 띄우고 고를 때까지 기다린다 → { x,y,w,h } | null(전체) | 'skip' */
+    pickArea(file, tag) {
+      return new Promise((resolve) => {
+        this.cropping = { url: URL.createObjectURL(file), rect: { x: 0, y: 0, w: 1, h: 1 }, tag, resolve }
+      })
+    },
+    finishCrop(how) {
+      const c = this.cropping
+      if (!c) return
+      URL.revokeObjectURL(c.url)
+      this.cropping = null
+      const full = c.rect.w > 0.98 && c.rect.h > 0.98
+      c.resolve(how === 'skip' ? 'skip' : how === 'all' || full ? null : { ...c.rect })
+    },
+
     async processFiles(files) {
       if (!files.length) return
       this.error = ''; this.reading = true
       try {
         for (let i = 0; i < files.length; i++) {
           const tag = files.length > 1 ? `${files.length}장 중 ${i + 1}장 ` : ''
+          // 읽기 도구는 미리 받아 두면서, 그동안 영역을 고른다
+          let crop = null
+          if (this.askCrop) {
+            crop = await this.pickArea(files[i], tag ? `${tag}· ` : '')
+            if (crop === 'skip') continue
+          }
           this.readingText = `${tag}읽을 준비 중…`
           const text = await readImage(files[i], ({ stage, pct }) => {
             this.readingText = stage === 'read' ? `${tag}글자 읽는 중 ${pct}%` : `${tag}읽기 도구 준비 중…`
-          })
+          }, crop)
           try { localStorage.setItem('ledger.ocrReady', '1') } catch { /* 저장 못 함 */ }
           this.firstLoad = false
           await this.addGroup(files[i], text)
@@ -453,4 +504,12 @@ export default {
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 6px;
 }
+.crop-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 20px; }
+.crop-opt input { width: 20px; height: 20px; accent-color: #C96A55; flex-shrink: 0; }
+.cropping { display: flex; flex-direction: column; gap: 12px; }
+.crop-head { display: flex; flex-direction: column; gap: 2px; }
+.crop-head strong { font-size: 16px; }
+.crop-btns { display: flex; flex-direction: column; gap: 8px; }
+.ghost-btn { height: 46px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 15px; color: var(--text); }
+.text-btn { height: 40px; border: 0; background: transparent; color: var(--text-sub); font-size: 14px; }
 </style>
