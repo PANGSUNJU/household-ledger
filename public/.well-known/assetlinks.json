@@ -1,1 +1,8 @@
-[]
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.workers.pang7163y.household_ledger.twa",
+        "sha256_cert_fingerprints": ["0D:BE:B0:28:44:4E:F6:C0:E3:05:21:D8:33:36:1E:64:1D:88:EF:BE:9D:F4:D9:0A:BE:EA:D7:08:11:B6:1F:2F"]
+      }
+    }]

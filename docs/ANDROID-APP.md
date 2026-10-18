@@ -14,7 +14,7 @@
 3. 옵션 (나머지는 기본값 그대로)
    | 항목 | 값 |
    |---|---|
-   | Package ID | `com.pangsunju.ledger` |
+   | Package ID | 지금 앱: `dev.workers.pang7163y.household_ledger.twa` (다시 만들 때도 같은 값이어야 같은 앱으로 업데이트돼요) |
    | App name / Short name | `내 가계부` / `가계부` |
    | Signing key | **Create new** (새로 만들기) |
 4. **Download** → zip 파일을 풀면 이런 파일이 있어요
