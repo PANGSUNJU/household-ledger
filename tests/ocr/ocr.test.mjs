@@ -46,6 +46,29 @@ ok('취소 영수증: 취소로 알아봄', c.canceled === true, JSON.stringify(
 ok('취소 영수증: 금액 14,380 (부호 없이)', c.amount === 14380, JSON.stringify(c))
 ok('취소 영수증: 가게·날짜', c.store === '이마트 경산점' && c.date === '2026-10-17', JSON.stringify(c))
 
+// 6. 실제 앱 캡처 (이름·카드 번호는 가짜로 바꿈)
+const t18 = '2026-10-18'
+const noBlank = (xs) => xs.every((x) => x.store && !/^\d/.test(x.store))
+for (const [f, label] of [['toss-light.png', '토스 라이트'], ['toss-dark.png', '토스 다크']]) {
+  const t = parseCapture(await read(f), t18)
+  const find = (re) => t.find((x) => re.test(x.store))
+  ok(`${label}: 잔액 줄은 기록으로 안 만듦 (이름 빈 기록 없음)`, noBlank(t) && !t.some((x) => [996, 995, 994, 990].includes(x.amount)), show(t))
+  ok(`${label}: 리워드 +4원 → 입금, '체크카드' 안 잘림`, find(/^체크카드 복권 당첨$/)?.amount === 4 && find(/^체크카드 복권 당첨$/)?.kind === 'income', show(t))
+  ok(`${label}: 홍길동 -2,000 지출 (아이콘 글자 안 붙음)`, t.some((x) => x.store === '홍길동' && x.amount === 2000 && x.kind === 'expense'), show(t))
+  ok(`${label}: 내 계좌 옮긴 돈도 둘 다 들어옴 (체크는 사용자가)`, t.some((x) => x.store === '이영희' && x.amount === 78200 && x.kind === 'income') && t.some((x) => x.store === '자금' && x.amount === 78200 && x.kind === 'expense'), show(t))
+  ok(`${label}: 10/14 날짜`, t.find((x) => x.store === '홍길동')?.date === '2026-10-14', show(t))
+}
+const td = parseCapture(await read('toss-dark.png'), t18)
+ok('토스 다크: 위가 잘린 맨 위 건은 날짜 비우고 표시', td[0]?.noDate === true && td[0]?.date === '' && /받은 돈/.test(td[0]?.store), show(td))
+const tl = parseCapture(await read('toss-light.png'), t18)
+ok('토스 라이트: 맨 위 건은 10/18', tl[0]?.date === '2026-10-18' && !tl[0]?.noDate, show(tl))
+
+const h = parseCapture(await read('hana-list.png'), t18)
+ok('하나카드: 5건 날짜·금액', h.length === 5 && h.map((x) => x.date + ':' + x.amount).join() === '2026-10-16:10450,2026-10-15:39000,2026-10-14:12000,2026-10-13:128900,2026-10-12:59000', show(h))
+ok('하나카드: 말줄임(…)을 취소로 보지 않음', h[3]?.kind === 'expense' && h[3]?.store.startsWith('EXAMPLE'), show(h))
+ok('하나카드: 아이콘 글자 안 붙음', h[2]?.store === '동네마트 정육코너' && h[0]?.store === '쿠팡(쿠페이)', show(h))
+ok('하나카드: 카드 번호·일시불이 이름에 없음', h.every((x) => !/1234|일시불|본인/.test(x.store)), show(h))
+
 // 5. 분류 짐작
 ok('분류 짐작: 메가커피 → 카페·간식', guessCategoryName('메가커피 경산중앙점') === '카페·간식')
 ok('분류 짐작: 다이소 → 생활용품', guessCategoryName('(주)아성다이소 경산점') === '생활용품')

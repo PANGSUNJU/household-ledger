@@ -66,7 +66,26 @@ async function prepare(file, crop) {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.drawImage(bmp, sx, sy, sw, sh, pad, pad, w, h)
   bmp.close?.()   // <img> 에는 close 가 없다
+  darkToLight(ctx, canvas.width, canvas.height)
   return canvas
+}
+
+/**
+ * 어두운 화면(다크 모드) 캡처면 색을 뒤집어 '흰 바탕 검은 글씨'로 만든다
+ * (글자 읽기 도구가 그 모양에 맞춰져 있다). 밝은 화면은 그대로 둔다
+ */
+export function darkToLight(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h)
+  const d = img.data
+  let sum = 0, n = 0
+  for (let i = 0; i < d.length; i += 4 * 97) { sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; n++ }
+  if (!n || sum / n >= 110) return false
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 255 - (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114)
+    d[i] = d[i + 1] = d[i + 2] = g
+  }
+  ctx.putImageData(img, 0, 0)
+  return true
 }
 
 /**
