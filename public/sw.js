@@ -5,6 +5,7 @@
  *  · 푸시 알림을 받아 띄우고, 누르면 앱을 연다
  */
 const CACHE = 'ledger-shell-v1'
+const SHARE = 'ledger-share'      // 다른 앱에서 공유받은 캡처를 잠깐 두는 곳 (캡처 화면이 읽고 바로 지운다)
 const OFFLINE = '/offline.html'
 
 self.addEventListener('install', (e) => {
@@ -14,13 +15,33 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k)
+    for (const k of await caches.keys()) if (k !== CACHE && k !== SHARE) await caches.delete(k)
     await self.clients.claim()
   })())
 })
 
+/*
+ * 갤러리·카드 앱에서 '공유 → 가계부' (manifest 의 share_target)
+ * 이미지를 잠깐 저장해 두고 캡처 화면(/capture?shared=장수)으로 보낸다. 서버로는 보내지 않는다.
+ */
+async function receiveShare(request) {
+  const form = await request.formData()
+  const files = form.getAll('images').filter((f) => f && typeof f === 'object' && f.size > 0).slice(0, 10)
+  const cache = await caches.open(SHARE)
+  for (const k of await cache.keys()) await cache.delete(k)
+  await Promise.all(files.map((f, i) => cache.put(`/shared-image/${i}`, new Response(f, {
+    headers: { 'Content-Type': f.type || 'image/png', 'X-File-Name': encodeURIComponent(f.name || `shared-${i}.png`) }
+  }))))
+  return Response.redirect(`/capture?shared=${files.length}`, 303)
+}
+
 // 화면 이동 요청만: 인터넷이 되면 그대로, 안 되면 안내 화면
 self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url)
+  if (e.request.method === 'POST' && url.origin === self.location.origin && url.pathname === '/share-target') {
+    e.respondWith(receiveShare(e.request).catch(() => Response.redirect('/capture', 303)))
+    return
+  }
   if (e.request.mode !== 'navigate') return
   e.respondWith(fetch(e.request).catch(() => caches.match(OFFLINE)))
 })

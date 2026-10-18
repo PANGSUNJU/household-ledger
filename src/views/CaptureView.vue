@@ -181,6 +181,7 @@ export default {
       console.error(e)
     }
     try { this.firstLoad = !localStorage.getItem('ledger.ocrReady') } catch { /* 저장 못 함 */ }
+    if (this.$route.query.shared) await this.takeShared()
   },
   beforeUnmount() {
     for (const g of this.groups) if (g.thumb) URL.revokeObjectURL(g.thumb)
@@ -205,6 +206,37 @@ export default {
     async onFiles(e) {
       const files = [...(e.target.files || [])]
       e.target.value = ''
+      await this.processFiles(files)
+    },
+
+    /**
+     * 다른 앱에서 '공유 → 가계부'로 받은 캡처 (서비스 워커가 잠깐 저장해 둔 것)
+     * 꺼내서 읽고, 저장해 둔 것은 바로 지운다
+     */
+    async takeShared() {
+      if (!('caches' in window)) return
+      try {
+        const cache = await caches.open('ledger-share')
+        const keys = await cache.keys()
+        const files = []
+        for (const req of keys) {
+          const res = await cache.match(req)
+          if (!res) continue
+          const blob = await res.blob()
+          const name = decodeURIComponent(res.headers.get('X-File-Name') || 'shared.png')
+          files.push(new File([blob], name, { type: blob.type || 'image/png' }))
+          await cache.delete(req)
+        }
+        this.$router.replace({ name: 'capture' })   // 새로고침해도 다시 읽지 않게
+        if (files.length) await this.processFiles(files)
+        else this.error = '공유받은 이미지를 찾지 못했어요. 여기서 직접 골라 주세요.'
+      } catch (e) {
+        this.error = '공유받은 이미지를 열지 못했어요. 여기서 직접 골라 주세요.'
+        console.error(e)
+      }
+    },
+
+    async processFiles(files) {
       if (!files.length) return
       this.error = ''; this.reading = true
       try {

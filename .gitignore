@@ -10,3 +10,10 @@ dist
 
 # 이미지 글자 읽기 파일 (npm install 때 자동 복사)
 public/ocr/
+
+# 안드로이드 앱 서명 열쇠·앱 파일 (절대 올리지 않기)
+*.keystore
+*.jks
+signing-key-info.txt
+*.apk
+*.aab
