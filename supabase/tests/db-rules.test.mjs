@@ -100,6 +100,14 @@ ok('25일이 토요일 → 뒤 평일 월요일', (await rd('2026-07-01', 25, 'a
 ok('31일 → 2월은 말일(28일, 토) → 27일 금', (await rd('2026-02-01', 31, 'before')) === '2026-02-27')
 ok('1일이 토요일 + 앞 평일 → 전달 31일', (await rd('2026-08-01', 1, 'before')) === '2026-07-31')
 ok('1일이 일요일 + 뒤 평일 → 2일 월요일', (await rd('2026-03-01', 1, 'after')) === '2026-03-02')
+ok('25일이 토요일 + 그날 그대로 → 25일 (0005)', (await rd('2026-07-01', 25, 'same')) === '2026-07-25')
+ok('1일이 일요일 + 그날 그대로 → 1일', (await rd('2026-03-01', 1, 'same')) === '2026-03-01')
+{
+  const r = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,start_date) values ('expense','구독',9900,25,'same','2030-01-01') returning id`)).rows[0]
+  ok('그날 그대로(same) 저장됨', !!r?.id)
+  await as(A, `delete from recurring_items where id=$1`, [r.id])
+}
+await expectError('주말 규칙은 세 가지만', A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,start_date) values ('expense','x',1,1,'weird','2030-01-01')`)
 
 // 9. 고정 항목 → 기록 자동 생성
 const salaryCat = (await as(A, `select id from categories where name='급여'`)).rows[0].id

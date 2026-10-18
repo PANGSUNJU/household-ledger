@@ -1,6 +1,6 @@
 /*
  * 고정 항목 날짜 규칙이 앱(src/lib/recurring.js)과 DB(recurring_date)에서 똑같은지 확인
- * 2년 × 1~31일 × 앞/뒤 평일 = 1,488가지를 모두 비교한다.
+ * 2년 × 1~31일 × 앞 평일/뒤 평일/그날 그대로 = 2,232가지를 모두 비교한다.
  */
 import { PGlite } from '@electric-sql/pglite'
 import { build } from 'esbuild'
@@ -24,7 +24,7 @@ await build({
 const { occurrenceDate } = await import(pathToFileURL(out).href)
 
 const db = new PGlite()
-const sql = readFileSync('supabase/migrations/0002_recurring.sql', 'utf8')
+const sql = readFileSync('supabase/migrations/0005_weekend_same.sql', 'utf8')   // 가장 최근 recurring_date
 const fn = sql.slice(sql.indexOf('create or replace function public.recurring_date'), sql.indexOf('end $$;', sql.indexOf('create or replace function public.recurring_date')) + 7)
 await db.exec(fn)
 
@@ -32,7 +32,7 @@ let pass = 0, fail = 0
 for (let i = 0; i < 24; i++) {
   const y = 2026 + Math.floor(i / 12), m = (i % 12) + 1
   for (let day = 1; day <= 31; day++) {
-    for (const rule of ['before', 'after']) {
+    for (const rule of ['before', 'after', 'same']) {
       const js = occurrenceDate({ day_of_month: day, weekend_rule: rule }, y, m)
       const r = await db.query(`select recurring_date(make_date($1, $2, 1), $3, $4)::text d`, [y, m, day, rule])
       if (js === r.rows[0].d) pass++

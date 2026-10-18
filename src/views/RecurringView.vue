@@ -8,7 +8,7 @@
       <p v-if="setupMissing" class="notice" role="alert">
         고정 항목을 쓰려면 Supabase <b>SQL Editor</b>에서 <code>supabase/migrations/0002_recurring.sql</code> 내용을 한 번 실행해 주세요.
       </p>
-      <p v-else class="intro">매달 같은 날 나가고 들어오는 돈을 등록해 두면, 그날 앱을 열 때 자동으로 기록돼요. 그날이 주말이면 앞이나 뒤 평일로 옮겨요.</p>
+      <p v-else class="intro">매달 같은 날 나가고 들어오는 돈을 등록해 두면, 그날 앱을 열 때 자동으로 기록돼요. 그날이 주말이면 앞·뒤 평일로 옮기거나 그날 그대로 둘 수 있어요.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
       <!-- 이번 달 고정 지출 -->
@@ -98,22 +98,18 @@
         </template>
         <p v-else class="muted small hint">날짜가 되면 '금액 입력 필요'로 기록돼요. 고지서가 나오면 금액만 넣으면 돼요. (전기·가스요금, 카드값 등)</p>
 
-        <div class="two">
-          <div class="col">
-            <label for="r-day" class="lbl">매달</label>
-            <select id="r-day" v-model.number="sheet.day" class="box">
-              <option v-for="d in 31" :key="d" :value="d">{{ d === 31 ? '말일' : d + '일' }}</option>
-            </select>
-          </div>
-          <div class="col">
-            <span class="lbl">주말이면</span>
-            <div class="seg" role="radiogroup" aria-label="주말이면">
-              <button type="button" role="radio" :aria-checked="sheet.rule === 'before'" :class="{ on: sheet.rule === 'before' }" @click="sheet.rule = 'before'">앞 평일</button>
-              <button type="button" role="radio" :aria-checked="sheet.rule === 'after'" :class="{ on: sheet.rule === 'after' }" @click="sheet.rule = 'after'">뒤 평일</button>
-            </div>
-          </div>
+        <label for="r-day" class="lbl">매달</label>
+        <select id="r-day" v-model.number="sheet.day" class="box">
+          <option v-for="d in 31" :key="d" :value="d">{{ d === 31 ? '말일' : d + '일' }}</option>
+        </select>
+        <span class="lbl">주말이면</span>
+        <div class="seg seg3" role="radiogroup" aria-label="주말이면">
+          <button
+            v-for="r in WEEKEND_RULES" :key="r.value" type="button" role="radio"
+            :aria-checked="sheet.rule === r.value" :class="{ on: sheet.rule === r.value }" @click="sheet.rule = r.value"
+          >{{ r.label }}</button>
         </div>
-        <span class="muted small">{{ sheet.kind === 'income' ? '월급은 보통 주말이면 앞 금요일에 들어와요.' : '자동이체는 보통 주말이면 뒤 월요일에 빠져나가요.' }}</span>
+        <span class="muted small">{{ sheet.kind === 'income' ? '월급은 보통 주말이면 앞 금요일에 들어와요.' : '자동이체는 보통 뒤 월요일, 카드 자동결제·구독은 주말에도 그날 나가요.' }}</span>
 
         <span class="lbl">분류</span>
         <CategoryGrid v-model="sheet.category_id" :categories="kindCats" />
@@ -162,7 +158,7 @@ import {
 import { moveAndSave } from '@/lib/manage'
 import { calcAmount, won } from '@/lib/money'
 import { todayKST, parse, format, daysInMonth, addDays, label } from '@/lib/date'
-import { occurrencesBetween, upcoming, nextDate, scheduleText, runRecurring, isMissingSetup } from '@/lib/recurring'
+import { occurrencesBetween, upcoming, nextDate, scheduleText, runRecurring, isMissingSetup, WEEKEND_RULES } from '@/lib/recurring'
 
 const emptySheet = (kind = 'expense') => ({
   open: true, id: null, kind, name: '', fixed: true, amountText: '', day: 25, rule: 'before',
@@ -176,6 +172,7 @@ export default {
     const today = todayKST()
     const { y, m } = parse(today)
     return {
+      WEEKEND_RULES,
       today, thisY: y, thisM: m,
       items: [], categories: [], methods: [], needs: [], doneTxs: [],
       loaded: false, busy: false, error: '', setupMissing: false, showStopped: false,
@@ -292,7 +289,10 @@ export default {
         this.sheet.open = false
         await this.afterChange()
       } catch (e) {
-        this.sheetError = '저장하지 못했어요. 다시 해 주세요.'
+        // '그날 그대로'인데 DB 에 0005 를 아직 안 돌린 경우 (check 제약 위반)
+        this.sheetError = e?.code === '23514' && this.sheet.rule === 'same'
+          ? "'그날 그대로'를 쓰려면 Supabase 에서 0005_weekend_same.sql 을 한 번 실행해 주세요."
+          : '저장하지 못했어요. 다시 해 주세요.'
         console.error(e)
       } finally { this.busy = false }
     },
@@ -364,6 +364,7 @@ export default {
 .need-row :deep(.amt) { color: #A9533F; font-size: 14px; }
 
 .two { display: grid; grid-template-columns: 2fr 3fr; gap: 10px; align-items: end; }
+.seg3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .col { display: flex; flex-direction: column; gap: 6px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 13px; }
