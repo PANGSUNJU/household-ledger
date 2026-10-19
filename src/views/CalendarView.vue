@@ -281,7 +281,7 @@ export default {
 .summary .refund-note { min-height: 15px; font-size: 11px; line-height: 15px; color: var(--text-faint); white-space: nowrap; }
 .amt.need { color: #A9533F; font-size: 9px; }
 .amt.plan { color: var(--text-faint); font-weight: 500; }
-.plan-name { max-width: 100%; font-size: 10px; line-height: 13px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-name { max-width: 100%; font-size: 9.5px; line-height: 13px; letter-spacing: -0.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell.planned { background: repeating-linear-gradient(135deg, transparent 0 5px, #F6EFEA 5px 7px); }
 .need-banner {
   display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0; padding: 12px 14px;
