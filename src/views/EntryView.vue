@@ -48,17 +48,17 @@
         </div>
       </div>
 
-      <!-- 날짜 · 가게 -->
+      <!-- 날짜 · 사용처(지출) / 입금처(수입) -->
       <div class="two">
         <div class="field">
           <label for="date" class="lbl">날짜</label>
           <input id="date" v-model="date" type="date" required class="box">
         </div>
         <div class="field">
-          <label for="store" class="lbl">{{ kind === 'income' ? (isRefund ? '가게' : '받은 곳') : '가게' }}</label>
+          <label for="store" class="lbl">{{ kind === 'income' && !isRefund ? '입금처' : '사용처' }}</label>
           <input
             id="store" v-model="store" type="text" maxlength="50" class="box"
-            :placeholder="kind === 'income' ? '예: 회사' : '예: 다이소'" @change="onStoreChange"
+            :placeholder="kind === 'income' && !isRefund ? '예: 회사, 중고거래' : '예: 다이소'" @change="onStoreChange"
           >
         </div>
       </div>
@@ -283,7 +283,7 @@ export default {
         }
         if (!this.touched.payment && last.payment_method_id && this.paymentMethods.some((m) => m.id === last.payment_method_id)) {
           this.paymentMethodId = last.payment_method_id
-          this.paymentHint = '이 가게에서 마지막으로 쓴 수단'
+          this.paymentHint = '이 사용처에서 마지막으로 쓴 수단'
         }
       } catch (e) {
         console.warn('가게별 기본값을 불러오지 못했어요', e)

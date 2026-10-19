@@ -12,7 +12,7 @@
     <label class="search">
       <AppIcon name="search" :size="20" />
       <span class="sr-only">검색</span>
-      <input v-model="query" type="search" placeholder="가게, 메모, 금액으로 검색" @input="onSearch">
+      <input v-model="query" type="search" placeholder="사용처, 메모, 금액으로 검색" @input="onSearch">
     </label>
 
     <div class="filters" role="radiogroup" aria-label="종류 필터">

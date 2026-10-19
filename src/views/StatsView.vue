@@ -86,7 +86,7 @@ export default {
   components: { AppIcon, BudgetCard },
   data() {
     return {
-      TABS: [{ v: 'byCategory', t: '분류별' }, { v: 'byStore', t: '가게별' }, { v: 'byMethod', t: '결제수단별' }],
+      TABS: [{ v: 'byCategory', t: '분류별' }, { v: 'byStore', t: '사용처별' }, { v: 'byMethod', t: '결제수단별' }],
       tab: 'byCategory', showAll: false,
       PERIODS: [{ v: 'this', t: '이번 달' }, { v: 'last', t: '지난달' }, { v: 'd30', t: '최근 30일' }, { v: 'custom', t: '직접 선택' }],
       period: 'this', today: todayKST(),
@@ -99,7 +99,7 @@ export default {
   computed: {
     rangeLabel() { return rangeText(this.range.from, this.range.to) },
     periodName() { return { this: '이번 달', last: '지난달', d30: '최근 30일', custom: '이 기간' }[this.period] },
-    tabLabel() { return { byCategory: '분류', byStore: '가게', byMethod: '결제수단' }[this.tab] },
+    tabLabel() { return { byCategory: '분류', byStore: '사용처', byMethod: '결제수단' }[this.tab] },
     diff() { return this.now && this.prev ? this.now.spent - this.prev.spent : 0 },
     diffText() {
       const label = this.range.cmpLabel
