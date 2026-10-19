@@ -348,15 +348,16 @@ export default {
 .empty { padding: 4px 4px 0 4px; }
 .notice code { font-size: 11px; word-break: break-all; }
 
-.month { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.month { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
 .month-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
 .link { color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
 .big { font-size: 20px; letter-spacing: -0.4px; }
 .unknown { font-size: 12px; font-weight: 600; color: #8E3F33; }
 .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 2px; }
-.cols > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cols > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cols .big { margin: 2px 0 4px; }
 .col-inc { padding-left: 12px; border-left: 1px solid var(--line-soft); }
-.cols .sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cols .sub { font-size: 11px; line-height: 16px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .needs { padding: 14px 16px 4px 16px; border: 1.5px solid #F2C2B0; }
 .needs h2 { margin: 0; font-size: 15px; }
