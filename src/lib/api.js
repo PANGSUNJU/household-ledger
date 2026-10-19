@@ -190,7 +190,8 @@ async function deleteTransactionRaw(id) {
 /* ---------- 검색 (내역 화면) ---------- */
 
 /** 가게·메모로 검색, 숫자만 넣으면 금액도 같이 찾기 (최근 200건) */
-export async function searchTransactions(text) {
+/** 검색: 사용처·메모·금액. range 가 있으면 그 기간 안에서만 ({ from, to } 'YYYY-MM-DD') */
+export async function searchTransactions(text, range = null) {
   const q = text.trim()
   const digits = q.replace(/[,\s원]/g, '')
   // PostgREST or() 문법에 쓰이는 기호는 빼서 안전하게
@@ -200,9 +201,10 @@ export async function searchTransactions(text) {
   // 카드번호처럼 긴 숫자는 금액 칸(int) 범위를 넘어 오류가 나므로 금액 검색에서 뺀다
   if (/^\d{1,10}$/.test(digits) && Number(digits) <= MAX_AMOUNT) conds.push(`amount.eq.${digits}`)
   if (!conds.length) return []
+  let q2 = supabase.from('transactions').select(TX_FIELDS).or(conds.join(','))
+  if (range) q2 = q2.gte('date', range.from).lte('date', range.to)
   return check(
-    await supabase.from('transactions').select(TX_FIELDS)
-      .or(conds.join(','))
+    await q2
       .order('date', { ascending: false }).order('created_at', { ascending: false })
       .limit(200)
   )
