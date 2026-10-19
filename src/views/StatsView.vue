@@ -29,6 +29,7 @@
         <span v-if="diffText" class="badge" :class="diff > 0 ? 'up' : 'down'">{{ diffText }}</span>
         <div class="lines">
           <div><span class="muted">수입</span><strong class="amount-income">{{ won(now.income) }}원</strong></div>
+          <div v-if="now.refund > 0"><span class="muted">환불로 빠짐</span><strong class="refund-amt">{{ won(now.refund) }}원</strong></div>
           <div v-if="now.savings"><span class="muted">그중 저축/투자</span><strong class="savings">{{ won(now.savings) }}원</strong></div>
         </div>
       </section>
@@ -204,6 +205,7 @@ export default {
 .lines { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 10px; font-size: 14px; }
 .lines div { display: flex; justify-content: space-between; }
 .savings { color: #2A5E5A; }
+.refund-amt { color: var(--text-sub); }
 .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface-sunken); border-radius: 12px; padding: 4px; }
 .tabs button { height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--text-sub); font-size: 14px; }
 .tabs button.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(120, 90, 70, 0.14); }

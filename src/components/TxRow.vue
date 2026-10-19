@@ -9,14 +9,14 @@
     </span>
     <!-- 오른쪽: 금액, 그 아래 작은 글씨로 결제수단 (체크·신용 구분용) -->
     <span class="right">
-      <span class="amt" :class="{ 'amount-income': tx.kind === 'income', 'amount-expense': tx.kind === 'expense' && tx.amount != null }">{{ amountText }}</span>
+      <span class="amt" :class="{ refund: isRefund, 'amount-income': tx.kind === 'income' && !isRefund, 'amount-expense': tx.kind === 'expense' && tx.amount != null }">{{ amountText }}</span>
       <span v-if="tx.payment_method" class="pm">{{ tx.payment_method.name }}</span>
     </span>
   </router-link>
 </template>
 
 <script>
-import { signed } from '@/lib/money'
+import { signed, won } from '@/lib/money'
 import CatTile from './CatTile.vue'
 
 /* 기록 한 줄 (캘린더 그날 내역, 내역 목록에서 같이 씀) */
@@ -41,7 +41,10 @@ export default {
       return parts.join(' · ')
     },
     amountText() {
-      return this.tx.status === 'needs_amount' ? '금액 입력 필요' : signed(this.tx.amount, this.tx.kind)
+      if (this.tx.status === 'needs_amount') return '금액 입력 필요'
+      // 환불은 수입이 아니라 지출에서 빠지는 돈 → + 없이 회색 (왼쪽 네모에 '환불')
+      if (this.isRefund) return won(this.tx.amount)
+      return signed(this.tx.amount, this.tx.kind)
     }
   }
 }
@@ -57,5 +60,6 @@ export default {
 }
 .right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; max-width: 42%; }
 .amt { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.amt.refund { color: var(--text-sub); }
 .pm { font-size: 11px; line-height: 14px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 </style>

@@ -24,6 +24,7 @@
       <div>
         <span class="muted">{{ vm }}월 지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
+        <span v-if="summary.refund > 0" class="refund-note">환불 {{ won(summary.refund) }}원 빠짐</span>
       </div>
       <div class="divider">
         <span class="muted">{{ vm }}월 수입</span>
@@ -50,6 +51,7 @@
           <!-- 그날 총수입·총지출만 (자세한 건 아래 목록) -->
           <span v-if="c.inc > 0" class="amt plus">+{{ compact(c.inc) }}</span>
           <span v-if="c.exp > 0" class="amt">-{{ compact(c.exp) }}</span>
+          <span v-if="c.back > 0" class="amt back">{{ compact(c.back) }}</span>
           <span v-if="c.rec && c.rec.needs && !c.inc && !c.exp" class="amt need">입력 필요</span>
           <span v-if="!c.rec && c.plans.length" class="amt plan">예정</span>
         </button>
@@ -132,13 +134,14 @@ export default {
         const date = format(this.vy, this.vm, d)
         const rec = this.days[date]
         const plans = this.plans[date] || []
-        // 총수입 / 총지출 (환불만 있는 날은 돌려받은 돈이라 수입 쪽에)
-        const inc = rec ? rec.income + Math.max(0, -rec.spent) : 0
+        // 총수입 / 총지출. 환불은 그날 지출에서 빼고, 환불이 더 크면 남는 만큼 회색으로 (수입 아님)
+        const inc = rec ? rec.income : 0
         const exp = rec ? Math.max(0, rec.spent) : 0
+        const back = rec ? Math.max(0, -rec.spent) : 0
         out.push({
-          d, date, rec, plans, inc, exp, wd: weekday(this.vy, this.vm, d),
+          d, date, rec, plans, inc, exp, back, wd: weekday(this.vy, this.vm, d),
           aria: `${this.vm}월 ${d}일` +
-            (rec ? (inc ? `, 수입 ${won(inc)}원` : '') + (exp ? `, 지출 ${won(exp)}원` : '') + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
+            (rec ? (inc ? `, 수입 ${won(inc)}원` : '') + (exp ? `, 지출 ${won(exp)}원` : '') + (back ? `, 환불 ${won(back)}원` : '') + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
               : plans.length ? `, 고정 항목 예정 ${plans.length}건` : ', 기록 없음')
         })
       }
@@ -268,6 +271,8 @@ export default {
 .today .day { color: var(--today-fg); font-weight: 700; }
 .amt { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--expense); }
 .amt.plus { color: var(--income); }
+.amt.back { color: var(--text-faint); }
+.summary .refund-note { font-size: 11px; color: var(--text-faint); }
 .amt.need { color: #A9533F; font-size: 9px; }
 .amt.plan { color: var(--text-faint); font-weight: 500; }
 .cell.planned { background: repeating-linear-gradient(135deg, transparent 0 5px, #F6EFEA 5px 7px); }
