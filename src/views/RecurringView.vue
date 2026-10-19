@@ -32,12 +32,8 @@
 
       <template v-for="group in groups" :key="group.kind">
         <h2 v-if="group.list.length" class="group-title">{{ group.title }}</h2>
-        <section v-if="group.list.length" class="card" :aria-label="group.title">
-          <ManageRow
-            v-for="(it, i) in group.list" :key="it.id" :name="it.name"
-            :first="i === 0" :last="i === group.list.length - 1"
-            @up="move(group.kind, i, -1)" @down="move(group.kind, i, 1)"
-          >
+        <section v-if="group.list.length" v-sortable="(from, to) => onSort(group.kind, from, to)" class="card" :aria-label="group.title">
+          <ManageRow v-for="it in group.list" :key="it.id" :name="it.name">
             <template #lead>
               <span class="tile" :style="{ background: catOf(it)?.color || '#F3EFEA' }">{{ dayBadge(it) }}</span>
             </template>
@@ -152,7 +148,7 @@ import {
   listRecurringItems, addRecurringItem, updateRecurringItem, deleteRecurringItem,
   listCategories, listPaymentMethods, listNeedsAmount, listFixedTransactions
 } from '@/lib/api'
-import { moveAndSave } from '@/lib/manage'
+import { reorder, saveMoved } from '@/lib/manage'
 import { calcAmount, won } from '@/lib/money'
 import { todayKST, parse, format, daysInMonth, addDays, label } from '@/lib/date'
 import { occurrencesBetween, upcoming, nextDate, scheduleText, runRecurring, isMissingSetup, WEEKEND_RULES } from '@/lib/recurring'
@@ -322,14 +318,11 @@ export default {
         await this.load()
       } catch (e) { this.sheetError = '삭제하지 못했어요.'; console.error(e) } finally { this.busy = false }
     },
-    async move(kind, i, dir) {
+    async onSort(kind, from, to) {
       this.error = ''
-      const list = this.activeItems.filter((x) => x.kind === kind)
-      try {
-        const next = await moveAndSave('recurring_items', list, i, dir)
-        next.forEach((x, n) => { x.sort_order = n + 1 })
-        this.items = [...this.items].sort((a, b) => a.kind.localeCompare(b.kind) || a.sort_order - b.sort_order)
-      } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
+      const next = reorder(this.activeItems.filter((x) => x.kind === kind), from, to)
+      this.items = [...this.items].sort((a, b) => a.kind.localeCompare(b.kind) || a.sort_order - b.sort_order)
+      try { await saveMoved('recurring_items', next, from, to) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
     }
   }
 }

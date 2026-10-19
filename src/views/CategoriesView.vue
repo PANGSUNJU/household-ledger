@@ -11,12 +11,8 @@
       </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-      <section class="card" :aria-label="(kind === 'expense' ? '지출' : '수입') + ' 분류'">
-        <ManageRow
-          v-for="(c, i) in active" :key="c.id" :name="c.name"
-          :first="i === 0" :last="i === active.length - 1"
-          @up="move(i, -1)" @down="move(i, 1)"
-        >
+      <section v-sortable="onSort" class="card" :aria-label="(kind === 'expense' ? '지출' : '수입') + ' 분류'">
+        <ManageRow v-for="c in active" :key="c.id" :name="c.name">
           <template #lead><span class="swatch" :style="{ background: c.color }" aria-hidden="true" /></template>
           {{ c.name }}
           <template #trail>
@@ -64,7 +60,7 @@ import ScreenHeader from '@/components/ScreenHeader.vue'
 import ManageRow from '@/components/ManageRow.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { listCategories, addCategory, updateCategory } from '@/lib/api'
-import { moveAndSave, PASTELS } from '@/lib/manage'
+import { reorder, saveMoved, PASTELS } from '@/lib/manage'
 
 export default {
   name: 'CategoriesView',
@@ -103,13 +99,12 @@ export default {
       this.error = ''
       try { this.replace(await updateCategory(c.id, { is_active: on })) } catch (e) { this.fail(e, '바꾸지 못했어요.') }
     },
-    async move(i, dir) {
+    /** 손잡이로 끌어서 옮김: 화면 먼저 바꾸고 저장 (실패하면 다시 불러옴) */
+    async onSort(from, to) {
       this.error = ''
-      try {
-        const next = await moveAndSave('categories', this.active, i, dir)
-        next.forEach((c, idx) => { c.sort_order = idx + 1 })
-        this.all = [...this.all.filter((c) => c.kind !== this.kind), ...next, ...this.hidden]
-      } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
+      const next = reorder(this.active, from, to)
+      this.all = [...this.all.filter((c) => c.kind !== this.kind), ...next, ...this.hidden]
+      try { await saveMoved('categories', next, from, to) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
     }
   }
 }

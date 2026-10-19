@@ -7,12 +7,8 @@
     <div class="body">
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-      <section class="card" aria-label="사용 중인 결제수단">
-        <ManageRow
-          v-for="(m, i) in active" :key="m.id" :name="m.name"
-          :first="i === 0" :last="i === active.length - 1"
-          @up="move(i, -1)" @down="move(i, 1)"
-        >
+      <section v-sortable="onSort" class="card" aria-label="사용 중인 결제수단">
+        <ManageRow v-for="m in active" :key="m.id" :name="m.name">
           <template #lead><span class="badge" :class="m.type">{{ TYPE[m.type] }}</span></template>
           {{ m.name }}
           <template #trail>
@@ -56,7 +52,7 @@ import ScreenHeader from '@/components/ScreenHeader.vue'
 import ManageRow from '@/components/ManageRow.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { listPaymentMethods, addPaymentMethod, updatePaymentMethod } from '@/lib/api'
-import { moveAndSave } from '@/lib/manage'
+import { reorder, saveMoved } from '@/lib/manage'
 
 export default {
   name: 'PaymentMethodsView',
@@ -99,12 +95,11 @@ export default {
         this.all = this.all.map((x) => (x.id === u.id ? u : x))
       } catch (e) { this.fail(e, '바꾸지 못했어요.') }
     },
-    async move(i, dir) {
+    async onSort(from, to) {
       this.error = ''
-      try {
-        const next = await moveAndSave('payment_methods', this.active, i, dir)
-        this.all = [...next, ...this.hidden]
-      } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
+      const next = reorder(this.active, from, to)
+      this.all = [...next, ...this.hidden]
+      try { await saveMoved('payment_methods', next, from, to) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
     }
   }
 }
