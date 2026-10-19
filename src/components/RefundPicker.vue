@@ -2,6 +2,12 @@
   <section class="refund" aria-label="환불할 구매 찾기">
     <strong class="title">어떤 구매를 환불받았나요?</strong>
 
+    <!-- 두 가지 방법을 처음부터 나란히: 구매 목록에서 고르기 / 분류만 직접 고르기 -->
+    <div class="tabs" role="radiogroup" aria-label="환불 고르는 방법">
+      <button type="button" role="radio" :aria-checked="!manual" :class="{ on: !manual }" @click="goPick">구매에서 고르기</button>
+      <button type="button" role="radio" :aria-checked="manual" :class="{ on: manual }" @click="goManual">분류 직접 고르기</button>
+    </div>
+
     <template v-if="!manual">
       <div class="search-row">
         <label class="search">
@@ -48,18 +54,15 @@
         {{ original.category?.name || '미분류' }}에서 {{ won(refundAmount) }}원을 빼고,
         {{ fee > 0 ? `수수료 ${won(fee)}원만 쓴 돈으로 남아요.` : '쓴 돈이 남지 않아요.' }}
       </p>
-
-      <button type="button" class="switch" @click="goManual">원래 구매를 찾지 못했어요</button>
     </template>
 
     <!-- 원래 구매가 기록에 없을 때: 빼는 지출 분류를 직접 고른다 -->
     <template v-else>
-      <p class="note">원래 구매가 없으면 뺄 지출을 골라 주세요</p>
+      <p class="note">돌려받은 돈을 뺄 지출 분류를 골라 주세요</p>
       <CategoryGrid
         :categories="expenseCategories" :model-value="manualCategoryId" label="빼는 지출 분류"
         @update:model-value="$emit('update:manualCategoryId', $event)"
       />
-      <button type="button" class="switch" @click="manual = false; $emit('update:manualCategoryId', null)">최근 구매에서 찾기</button>
     </template>
   </section>
 </template>
@@ -169,8 +172,14 @@ export default {
       } finally { this.reading = false }
     },
     goManual() {
+      if (this.manual) return
       this.manual = true
       this.$emit('update:original', null)
+    },
+    goPick() {
+      if (!this.manual) return
+      this.manual = false
+      this.$emit('update:manualCategoryId', null)
     },
     shortDate(d) {
       const { m, d: day } = parse(d)
@@ -214,5 +223,10 @@ export default {
 .calc strong { font-size: 15px; }
 .note { margin: 0; font-size: 12px; line-height: 18px; color: #5A4E48; }
 .note.warn { color: var(--expense); }
-.switch { align-self: flex-start; border: 0; background: transparent; color: var(--accent); font-size: 13px; padding: 6px 0; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: #E1EBF7; border-radius: var(--radius); }
+.tabs button {
+  height: 38px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent;
+  font-size: 14px; font-weight: 600; color: var(--text-sub);
+}
+.tabs button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(40, 60, 90, 0.12); }
 </style>
