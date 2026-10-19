@@ -18,7 +18,8 @@
       <div class="meter" role="progressbar" :aria-valuenow="Math.round(pct)" aria-valuemin="0" aria-valuemax="100" :aria-label="`예산의 ${Math.round(pct)}% 사용`">
         <span class="fill" :class="{ over: left < 0 }" :style="{ width: Math.min(100, pct) + '%' }" />
       </div>
-      <div class="b-foot">
+      <!-- 아래 줄: 폭이 모자라면(작은 폰 + 큰 금액) 글자를 한 단계 작게 -->
+      <div ref="foot" class="b-foot" :class="{ tight }">
         <span class="muted tiny">쓴 돈 {{ won(spent) }}원 (저축 빼고)</span>
         <span v-if="isThisMonth && left > 0" class="per-day">하루 {{ won(perDay) }}원 · {{ daysLeft }}일 남음</span>
       </div>
@@ -74,7 +75,7 @@ export default {
   },
   emits: ['changed'],
   data() {
-    return { own: { loaded: false, ready: false, budget: null }, sheet: false, amountText: '', busy: false, err: '' }
+    return { own: { loaded: false, ready: false, budget: null }, sheet: false, amountText: '', busy: false, err: '', tight: false }
   },
   computed: {
     dataState() { return dataState },
@@ -94,8 +95,22 @@ export default {
     'dataState.version'() { if (!this.preset) this.load() }
   },
   created() { if (!this.preset) this.load() },
+  mounted() { this.fitFoot() },
+  updated() { this.fitFoot() },
   methods: {
     won,
+    /** 아래 줄이 넘치면 tight(작은 글씨). 넘치지 않으면 원래 크기로 되돌림 */
+    fitFoot() {
+      const el = this.$refs.foot
+      if (!el) return
+      if (this.tight) {
+        // 원래 크기로 넣어 봐서 들어가면 되돌린다
+        el.classList.remove('tight')
+        const fits = el.scrollWidth <= el.clientWidth
+        el.classList.add('tight')
+        if (fits) this.tight = false
+      } else if (el.scrollWidth > el.clientWidth) this.tight = true
+    },
     async load() {
       const month = this.month01
       try {
@@ -144,6 +159,8 @@ export default {
 .b-head { display: flex; justify-content: space-between; align-items: center; }
 .edit { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--surface-sunken); font-size: 12px; color: #5A4E48; }
 .b-main { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; }
+.b-foot.tight .tiny { font-size: 10px; }
+.b-foot.tight .per-day { font-size: 11.5px; }
 .b-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-height: 18px; white-space: nowrap; letter-spacing: -0.3px; }
 .b-main strong { font-size: 18px; }
 .b-main strong.over { color: var(--expense); }
