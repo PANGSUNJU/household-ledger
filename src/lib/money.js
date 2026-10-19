@@ -6,10 +6,13 @@ export function won(n) {
   return Math.round(n).toLocaleString('ko-KR')
 }
 
-/** 좁은 칸용: 1,000,000 이상은 '320만'처럼 줄인다 */
+/** 달력 칸용 짧은 금액: 10만 이상은 '만' 단위 (소수 첫째 자리까지, .0 은 뺌) → 53.9만, 320만, 1,234.6만 */
 export function compact(n) {
   const a = Math.abs(n)
-  if (a >= 1000000) return (Math.round(a / 10000)).toLocaleString('ko-KR') + '만'
+  if (a >= 100000) {
+    const v = Math.round(a / 1000) / 10
+    return v.toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '만'
+  }
   return won(a)
 }
 

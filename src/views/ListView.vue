@@ -87,7 +87,13 @@ export default {
       if (this.filter !== 'income' && s.refund) out.push({ text: `환불 ${won(s.refund)}원 빠짐`, cls: 'refund' })
       return out
     },
-    visible() { return this.filter === 'all' ? this.txs : this.txs.filter((t) => t.kind === this.filter) },
+    /** 필터: 환불은 지출을 줄이는 돈이라 [지출]에 같이, [수입]은 진짜 수입만 */
+    visible() {
+      if (this.filter === 'all') return this.txs
+      const isRefund = (t) => t.kind === 'income' && t.category?.is_refund
+      if (this.filter === 'expense') return this.txs.filter((t) => t.kind === 'expense' || isRefund(t))
+      return this.txs.filter((t) => t.kind === 'income' && !isRefund(t))
+    },
     /** 환불 수수료 표시용: 불러온 기록 중 원래 구매 금액 */
     originals() {
       const map = {}
