@@ -216,6 +216,10 @@ await expectError('보낸 날(remind_sent_on)은 앱에서 못 바꿈', A, `upda
 await as(A, `insert into quick_entries (name, amount, memo) values ('커피', 4500, '아이스 아메리카노')`)
 ok('0007: 자주 쓰는 내역에 메모 저장', (await as(A, `select memo from quick_entries where name='커피'`)).rows[0]?.memo === '아이스 아메리카노')
 await expectError('0007: 메모 200자 넘으면 막힘', A, `insert into quick_entries (name, amount, memo) values ('x', 1, repeat('가', 201))`)
+ok('0007: 예전 내역은 지출', (await as(A, `select kind from quick_entries where name='커피'`)).rows[0]?.kind === 'expense')
+await as(A, `insert into quick_entries (name, amount, kind) values ('용돈', 100000, 'income')`)
+ok('0007: 수입 내역 저장', (await as(A, `select kind from quick_entries where name='용돈'`)).rows[0]?.kind === 'income')
+await expectError('0007: 지출/수입 말고는 막힘', A, `insert into quick_entries (name, amount, kind) values ('x', 1, 'refund')`)
 await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1])
 ok('0007: 다시 실행해도 괜찮음', true)
 
