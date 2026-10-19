@@ -92,7 +92,7 @@ export default {
       tab: 'byCategory', showAll: false,
       PERIODS: [
         { v: 'this', t: '이번 달' }, { v: 'last', t: '지난달' }, { v: 'd30', t: '최근 30일' },
-        { v: 'year', t: '올해' }, { v: 'lastyear', t: '작년' }, { v: 'custom', t: '직접 선택' }
+        { v: 'year', t: '올해' }, { v: 'custom', t: '직접 선택' }
       ],
       period: 'this', today: todayKST(),
       thisY: parse(todayKST()).y, thisM: parse(todayKST()).m,
@@ -103,7 +103,7 @@ export default {
   },
   computed: {
     rangeLabel() { return rangeText(this.range.from, this.range.to) },
-    periodName() { return { this: '이번 달', last: '지난달', d30: '최근 30일', year: '올해', lastyear: '작년', custom: '이 기간' }[this.period] },
+    periodName() { return { this: '이번 달', last: '지난달', d30: '최근 30일', year: '올해', custom: '이 기간' }[this.period] },
     tabLabel() { return { byCategory: '분류', byStore: '사용처', byMethod: '결제수단' }[this.tab] },
     diff() { return this.now && this.prev ? this.now.spent - this.prev.spent : 0 },
     diffText() {
@@ -224,7 +224,7 @@ export default {
 .fl-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .fl-main strong { font-size: 15px; }
 .chev { color: #B8A69C; }
-.periods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.periods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .periods button { height: 36px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 13px; color: var(--text-sub); }
 .periods button.on { border-color: #E8806A; background: #FFE6DA; color: #8E3F33; font-weight: 600; }
 .custom { display: flex; align-items: center; gap: 6px; }
