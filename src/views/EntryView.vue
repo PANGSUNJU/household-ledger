@@ -162,7 +162,7 @@ export default {
       amountText: '',
       date: /^\d{4}-\d{2}-\d{2}$/.test(qDate || '') ? qDate : todayKST(),
       store: '', categoryId: null, paymentMethodId: null, memo: '',
-      refundOf: null, refundCategoryId: null, startManualRefund: false,
+      refundOf: null, pickedOriginal: null, refundCategoryId: null, startManualRefund: false,
       // 사용자가 직접 고른 값은 가게별 기본값으로 덮어쓰지 않는다
       touched: { category: false, payment: false },
       paymentHint: '',
@@ -245,6 +245,7 @@ export default {
       if (t.payment_method && !this.paymentMethods.some((m) => m.id === t.payment_method.id)) this.paymentMethods.push(t.payment_method)
       if (t.refund_of_id) {
         try { this.refundOf = await getTransaction(t.refund_of_id) } catch { this.refundOf = null }
+        this.pickedOriginal = this.refundOf   // 수정: 지금 연결된 구매를 '앞서 고른 구매'로
       } else if (t.refund_category_id) {
         this.refundCategoryId = t.refund_category_id
         this.startManualRefund = true
@@ -262,6 +263,7 @@ export default {
       if (q.refund_of) {
         try {
           this.refundOf = await getTransaction(q.refund_of)
+          this.pickedOriginal = this.refundOf
           if (this.refundOf.payment_method_id) this.paymentMethodId = this.refundOf.payment_method_id
         } catch { this.refundOf = null }
       }
@@ -320,11 +322,19 @@ export default {
         console.warn('가게별 기본값을 불러오지 못했어요', e)
       }
     },
-    /** 환불할 구매를 고르면 가게·결제수단을 원래 구매에서 가져온다 */
+    /**
+     * 환불할 구매를 고르면 사용처·결제수단을 원래 구매에서 가져온다
+     *  · 비어 있거나, 앞서 고른 구매에서 가져온 값 그대로면(직접 고치지 않았으면) 새 구매 값으로 바꾼다
+     *    → 수정 화면에서 다른 구매로 바꿔도 사용처가 예전 이름으로 남지 않는다
+     */
     onPickOriginal(t) {
       if (!t) return
-      if (!this.store) this.store = t.store_name || ''
-      if (!this.touched.payment && t.payment_method_id) this.paymentMethodId = t.payment_method_id
+      const prev = this.pickedOriginal
+      if (!this.store || (prev && this.store === (prev.store_name || ''))) this.store = t.store_name || ''
+      if (t.payment_method_id && (!this.touched.payment || (prev && this.paymentMethodId === prev.payment_method_id))) {
+        this.paymentMethodId = t.payment_method_id
+      }
+      this.pickedOriginal = t
       this.refundCategoryId = null
     },
     async save() {
