@@ -57,6 +57,7 @@ npm install
 5. 같은 방법으로 `supabase/migrations/0003_budget_store_remind.sql` 도 **Run** (예산·가게 이름 기억·주간 알림)
 6. 같은 방법으로 `supabase/migrations/0004_push.sql` 도 **Run** (폰 푸시 알림 주소)
 7. 같은 방법으로 `supabase/migrations/0005_weekend_same.sql` 도 **Run** (고정 항목 '주말에도 그날', 다시 실행해도 괜찮음)
+8. 같은 방법으로 `supabase/migrations/0006_no_fixed_category.sql` 도 **Run** ('고정지출' 분류 없애기, 다시 실행해도 괜찮음)
    - 파일은 번호 순서대로 한 번씩만 실행해요. 이미 실행한 파일을 다시 돌리면 "already exists" 오류가 나요.
 
 ### 4. 연결 정보 넣기
@@ -159,6 +160,7 @@ supabase/
   migrations/0003_budget_store_remind.sql  예산·가게 이름 짝·알림 설정
   migrations/0004_push.sql   폰 알림 주소
   migrations/0005_weekend_same.sql  고정 항목 '주말에도 그날'
+  migrations/0006_no_fixed_category.sql  '고정지출' 분류 없애기 (고정 항목은 source 로 구분)
   functions/send-reminders/  알림 보내기 (Edge Function)
   cron-send-reminders.sql    10분마다 알림 확인 예약 (값을 바꿔서 한 번 실행)
 public/sw.js           서비스 워커 (알림 받기·인터넷 끊김 안내)

@@ -40,7 +40,8 @@ async function expectError(name, uid, sql) {
 
 // 1. 가입 시 기본값
 const cats = await as(A, `select kind, name, is_savings, is_refund from categories order by kind, sort_order`)
-ok('지출 9 + 수입 2 기본 분류', cats.rows.length === 11)
+ok('지출 8 + 수입 2 기본 분류', cats.rows.length === 10)
+ok("'고정지출' 분류는 안 만듦 (0006)", !cats.rows.some(r => r.name === '고정지출'))
 ok('저축/투자 표시', cats.rows.some(r => r.name === '저축/투자' && r.is_savings))
 ok('환불 표시', cats.rows.some(r => r.name === '환불' && r.is_refund))
 const pm = await as(A, `select name from payment_methods`)
@@ -48,7 +49,7 @@ ok('현금 기본 결제수단', pm.rows.length === 1 && pm.rows[0].name === '�
 
 // 2. 다른 사람 데이터는 안 보임
 const bCats = await as(B, `select count(*)::int c from categories`)
-ok('B는 자기 분류 11개만 봄', bCats.rows[0].c === 11)
+ok('B는 자기 분류 10개만 봄', bCats.rows[0].c === 10)
 
 // 3. 지출 → 환불 흐름 (10,000 쇼핑 / 9,200 환불)
 const shop = (await as(A, `select id from categories where name='쇼핑'`)).rows[0].id
@@ -111,7 +112,7 @@ await expectError('주말 규칙은 세 가지만', A, `insert into recurring_it
 
 // 9. 고정 항목 → 기록 자동 생성
 const salaryCat = (await as(A, `select id from categories where name='급여'`)).rows[0].id
-const fixedCat = (await as(A, `select id from categories where name='고정지출'`)).rows[0].id
+const fixedCat = (await as(A, `select id from categories where name='기타'`)).rows[0].id   // 고정 항목도 보통 분류를 고른다
 const salary = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,category_id,start_date)
   values ('income','월급',3200000,25,'before',$1,'2026-06-01') returning id`, [salaryCat])).rows[0].id
 const ins = (await as(A, `insert into recurring_items (kind,name,amount,day_of_month,weekend_rule,category_id,start_date)
@@ -210,6 +211,16 @@ await expectError('https 아닌 주소 막힘', A, `select save_push_subscriptio
 await as(B, `delete from push_subscriptions where endpoint='${EP}'`)
 ok('본인 알림 주소 지우기', (await as(B, `select count(*)::int c from push_subscriptions`)).rows[0].c === 0)
 await expectError('보낸 날(remind_sent_on)은 앱에서 못 바꿈', A, `update user_settings set remind_sent_on = '2026-10-18'`)
+
+// 0006 이전에 가입해 '고정지출' 분류가 있던 사람: 0006 을 실행하면 숨겨지고, 지난 기록 분류는 그대로
+await db.exec(`reset role; insert into public.categories (user_id, kind, name, color, sort_order) values ('${A}', 'expense', '고정지출', '#E6DDD5', 9)`)
+const oldFixed = (await as(A, `select id from categories where name='고정지출'`)).rows[0].id
+await as(A, `insert into transactions (kind, date, amount, store_name, category_id) values ('expense', '2026-10-01', 55000, '통신비', $1)`, [oldFixed])
+await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1]); await db.exec(migrations[migrations.length - 1])
+ok("0006: 예전 '고정지출' 분류는 숨김 (두 번 실행해도 괜찮음)", (await as(A, `select is_active from categories where id=$1`, [oldFixed])).rows[0].is_active === false)
+ok('0006: 지난 기록 분류는 그대로', (await as(A, `select count(*)::int c from transactions where category_id=$1`, [oldFixed])).rows[0].c === 1)
+await db.exec(`reset role; insert into auth.users values ('33333333-3333-3333-3333-333333333333')`)
+ok('0006 뒤 새로 가입 → 기본 분류 10개', (await as('33333333-3333-3333-3333-333333333333', `select count(*)::int c from categories`)).rows[0].c === 10)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
