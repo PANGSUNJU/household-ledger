@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:db": "node supabase/tests/db-rules.test.mjs supabase/migrations/0001_init.sql supabase/migrations/0002_recurring.sql supabase/migrations/0003_budget_store_remind.sql supabase/migrations/0004_push.sql supabase/migrations/0005_weekend_same.sql && node supabase/tests/recurring-date.test.mjs",
+    "test:db": "node supabase/tests/db-rules.test.mjs supabase/migrations/0001_init.sql supabase/migrations/0002_recurring.sql supabase/migrations/0003_budget_store_remind.sql supabase/migrations/0004_push.sql supabase/migrations/0005_weekend_same.sql supabase/migrations/0006_no_fixed_category.sql && node supabase/tests/recurring-date.test.mjs",
     "postinstall": "node scripts/copy-ocr-assets.mjs",
     "predev": "node scripts/copy-ocr-assets.mjs",
     "prebuild": "node scripts/copy-ocr-assets.mjs",

@@ -46,6 +46,7 @@
               <span v-else class="vary">매달 다름</span>
             </span>
             <span class="muted small">{{ scheduleText(it) }}{{ nextText(it) }}</span>
+            <span v-if="!activeCatOf(it)" class="no-cat">분류를 골라 주세요</span>
             <template #trail>
               <button type="button" class="mini" @click="openEdit(it)">수정</button>
             </template>
@@ -107,7 +108,7 @@
           >{{ r.label }}</button>
         </div>
 
-        <span class="lbl">분류</span>
+        <span class="lbl">분류 <span v-if="!sheet.category_id" class="need-mark">골라 주세요</span></span>
         <CategoryGrid v-model="sheet.category_id" :categories="kindCats" />
 
         <span class="lbl">{{ sheet.kind === 'income' ? '받는 통장' : '결제수단' }}</span>
@@ -205,7 +206,7 @@ export default {
     kindCats() { return this.categories.filter((c) => c.kind === this.sheet.kind && c.is_active && !c.is_refund) },
     sheetAmount() { return calcAmount(this.sheet.amountText) },
     canSave() {
-      if (!this.sheet.name.trim() || !this.sheet.start) return false
+      if (!this.sheet.name.trim() || !this.sheet.start || !this.sheet.category_id) return false
       return !this.sheet.fixed || this.sheetAmount > 0
     },
     maxStart() { return addDays(this.today, 366) },
@@ -243,6 +244,8 @@ export default {
     },
     fail(e, msg) { this.error = msg; console.error(e) },
     catOf(it) { return this.categories.find((c) => c.id === it.category_id) },
+    /** 지금 쓰는(숨기지 않은) 분류. 없으면 목록에 '분류를 골라 주세요' */
+    activeCatOf(it) { const c = this.catOf(it); return c && c.is_active ? c : null },
     dayBadge(it) { return it.day_of_month >= 31 ? '말일' : it.day_of_month + '일' },
     nextText(it) {
       const n = nextDate(it, this.today)
@@ -250,16 +253,17 @@ export default {
     },
     setKind(k) { this.sheet.kind = k; this.sheet.category_id = null },
     openNew() {
+      // 분류는 미리 고르지 않는다: 통신비·구독·보험처럼 사용자가 직접 정함
+      //  (고정 항목인지는 분류가 아니라 기록의 source='recurring' 으로 구분)
       this.sheet = emptySheet()
-      // 고정 지출 분류가 있으면 미리 골라 둔다
-      this.sheet.category_id = this.categories.find((c) => c.kind === 'expense' && c.is_active && c.name === '고정지출')?.id || null
       this.sheetError = ''; this.confirmDelete = false
     },
     openEdit(it) {
       this.sheet = {
         open: true, id: it.id, kind: it.kind, name: it.name, fixed: it.is_amount_fixed,
         amountText: it.amount ? String(it.amount) : '', day: it.day_of_month, rule: it.weekend_rule,
-        category_id: it.category_id, payment_method_id: it.payment_method_id, start: it.start_date
+        // 숨긴 분류(예: 예전 '고정지출')면 비워서 다시 고르게
+        category_id: this.activeCatOf(it)?.id || null, payment_method_id: it.payment_method_id, start: it.start_date
       }
       this.sheetError = ''; this.confirmDelete = false
     },
@@ -367,4 +371,6 @@ export default {
 .danger-row { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
 .confirm { display: inline-flex; align-items: center; gap: 8px; color: var(--expense); }
 select.box { appearance: auto; }
+.no-cat { font-size: 12px; font-weight: 600; color: #A9533F; }
+.need-mark { margin-left: 4px; font-size: 12px; font-weight: 600; color: #A9533F; }
 </style>

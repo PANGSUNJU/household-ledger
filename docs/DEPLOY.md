@@ -61,7 +61,8 @@ SQL Editor 에서 번호 순서대로 한 번씩:
 3. `supabase/migrations/0003_budget_store_remind.sql`
 4. `supabase/migrations/0004_push.sql`
 5. `supabase/migrations/0005_weekend_same.sql`
-6. (8번을 마친 뒤) `supabase/cron-send-reminders.sql`
+6. `supabase/migrations/0006_no_fixed_category.sql`
+7. (8번을 마친 뒤) `supabase/cron-send-reminders.sql`
 
 ## 8. 폰 푸시 알림 켜기 (0원, 한 번만)
 알림은 **https 배포 주소**에서만 동작해요. 2~3번(배포)을 먼저 해 주세요.
