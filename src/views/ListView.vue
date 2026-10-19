@@ -2,7 +2,7 @@
   <main class="page list-page">
     <header class="head">
       <h1 class="page-title">내역</h1>
-      <div v-if="!searching" class="month">
+      <div v-if="!(searching && scope === 'all')" class="month">
         <button type="button" class="icon-btn" aria-label="이전 달" @click="move(-1)"><AppIcon name="back" :size="20" /></button>
         <button type="button" class="ym" aria-label="연월 선택" @click="picker = true">{{ y }}년 {{ m }}월<AppIcon name="down" :size="16" /></button>
         <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="20" /></button>
@@ -23,9 +23,15 @@
       <span v-if="searching" class="count muted">{{ visible.length }}건 찾음</span>
     </div>
 
+    <!-- 검색 중: 고른 달에서만 / 전체 기간 -->
+    <div v-if="searching" class="scope" role="radiogroup" aria-label="검색 기간">
+      <button type="button" role="radio" :aria-checked="scope === 'month'" :class="{ on: scope === 'month' }" @click="setScope('month')">{{ m }}월에서</button>
+      <button type="button" role="radio" :aria-checked="scope === 'all'" :class="{ on: scope === 'all' }" @click="setScope('all')">전체 기간</button>
+    </div>
+
     <p v-if="loading && !freshAt" class="msg muted">불러오는 중…</p>
     <p v-else-if="error" class="msg error">{{ error }}</p>
-    <p v-else-if="!groups.length" class="msg muted">{{ searching ? '찾는 기록이 없어요.' : '이 달에는 기록이 없어요.' }}</p>
+    <p v-else-if="!groups.length" class="msg muted">{{ searching ? (scope === 'month' ? `${m}월에는 찾는 기록이 없어요.` : '찾는 기록이 없어요.') : '이 달에는 기록이 없어요.' }}</p>
 
     <section v-for="g in groups" :key="g.date" class="card group">
       <div class="g-head">
@@ -43,7 +49,7 @@ import TxRow from '@/components/TxRow.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
 import { dataState, freshness } from '@/lib/sync'
 import { listMonth, searchTransactions } from '@/lib/api'
-import { todayKST, parse, addMonths, label } from '@/lib/date'
+import { todayKST, parse, format, daysInMonth, addMonths, label } from '@/lib/date'
 
 export default {
   name: 'ListView',
@@ -53,7 +59,7 @@ export default {
     const { y, m } = parse(todayKST())
     return {
       FILTERS: [{ v: 'all', t: '전체' }, { v: 'expense', t: '지출' }, { v: 'income', t: '수입' }],
-      y, m, picker: false, query: '', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
+      y, m, picker: false, query: '', scope: 'month', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
     }
   },
   computed: {
@@ -87,7 +93,9 @@ export default {
       const ver = dataState.version
       this.loading = true; this.error = ''
       try {
-        const rows = this.searching ? await searchTransactions(this.query) : await listMonth(this.y, this.m)
+        const range = { from: format(this.y, this.m, 1), to: format(this.y, this.m, daysInMonth(this.y, this.m)) }
+        const rows = !this.searching ? await listMonth(this.y, this.m)
+          : await searchTransactions(this.query, this.scope === 'month' ? range : null)
         if (seq === this.reqSeq) { this.txs = rows; this.markFresh(ver) }
       } catch (e) {
         if (seq !== this.reqSeq) return
@@ -98,8 +106,14 @@ export default {
       }
     },
     onSearch() {
+      if (!this.searching) this.scope = 'month'   // 검색어를 지우면 다시 '고른 달'부터
       clearTimeout(this.timer)
       this.timer = setTimeout(() => this.load(), 250)
+    },
+    setScope(s) {
+      if (this.scope === s) return
+      this.scope = s
+      this.load()
     },
     move(diff) {
       this.goMonth(addMonths(this.y, this.m, diff))
@@ -129,6 +143,9 @@ export default {
 .filters button { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 17px; background: var(--surface); font-size: 13px; }
 .filters button.on { border-color: var(--primary); background: var(--primary); color: var(--on-primary); font-weight: 600; }
 .count { margin-left: auto; font-size: 13px; }
+.scope { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface-soft, #F3EFEA); border-radius: 12px; }
+.scope button { height: 34px; border: 0; border-radius: 10px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-sub); }
+.scope button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(60, 40, 30, 0.12); }
 .msg { margin: 8px 0; font-size: 14px; }
 .error { color: var(--expense); }
 .group { padding: 12px 16px 4px 16px; }
