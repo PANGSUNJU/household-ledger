@@ -1,7 +1,8 @@
 <template>
   <main class="entry">
-    <ScreenHeader :title="isEdit ? '기록 수정' : '기록 추가'" back="close" fallback="/">
-      <router-link v-if="!isEdit && kind === 'expense'" to="/capture" class="capture">
+    <!-- 위 줄은 화면을 내려도 붙어 있게 (캡처로 입력 버튼을 언제든 누를 수 있게). 지출·수입 모두 -->
+    <ScreenHeader :title="isEdit ? '기록 수정' : '기록 추가'" back="close" fallback="/" class="pinned-head">
+      <router-link v-if="!isEdit" to="/capture" class="capture">
         <AppIcon name="image" :size="16" />캡처로 입력
       </router-link>
     </ScreenHeader>
@@ -357,6 +358,7 @@ export default {
 .entry { min-height: 100dvh; background: var(--surface); }
 .loading { padding: 24px 16px; margin: 0; }
 .error { color: var(--expense); }
+.pinned-head { position: sticky; top: 0; z-index: 5; background: var(--surface); }
 .capture {
   height: 36px; padding: 0 12px; border-radius: var(--radius); background: var(--capture-bg); color: var(--capture-fg);
   font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; text-decoration: none;
