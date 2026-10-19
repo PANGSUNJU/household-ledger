@@ -59,7 +59,6 @@
     <section class="card day-list" :aria-label="dayLabel + ' 내역'">
       <div class="day-head">
         <h2>{{ dayLabel }}{{ selected === today ? ' · 오늘' : '' }}</h2>
-        <span v-if="selectedTotal > 0" class="amount-expense">-{{ won(selectedTotal) }}원</span>
       </div>
       <p v-if="loading" class="muted empty-msg">불러오는 중…</p>
       <p v-else-if="error" class="error empty-msg">{{ error }}</p>
@@ -149,7 +148,6 @@ export default {
     selectedTxs() { return this.txs.filter((t) => t.date === this.selected) },
     showRemind() { return shouldRemind(this.remind) },
     selectedPlans() { return this.plans[this.selected] || [] },
-    selectedTotal() { return this.days[this.selected]?.spent || 0 },
     dayLabel() { return label(this.selected) }
   },
   created() {
