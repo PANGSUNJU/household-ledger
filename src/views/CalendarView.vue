@@ -24,13 +24,13 @@
       <div>
         <span class="muted">{{ vm }}월 지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
-        <span v-if="summary.refund > 0" class="refund-note">환불 {{ won(summary.refund) }}원 빠짐</span>
       </div>
       <div class="divider">
         <span class="muted">{{ vm }}월 수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
-      <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
+      <!-- 환불 안내는 이 줄 왼쪽에 (카드 높이가 달마다 달라져 달력이 움직이지 않게) -->
+      <p class="net"><span v-if="summary.refund > 0" class="refund-note">지출에서 환불 {{ won(summary.refund) }}원 빠짐</span><span class="net-val">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></span></p>
     </section>
 
     <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
@@ -53,7 +53,11 @@
           <span v-if="c.exp > 0" class="amt">-{{ compact(c.exp) }}</span>
           <span v-if="c.back > 0" class="amt back">{{ compact(c.back) }}</span>
           <span v-if="c.rec && c.rec.needs && !c.inc && !c.exp" class="amt need">입력 필요</span>
-          <span v-if="!c.rec && c.plans.length" class="amt plan">예정</span>
+          <!-- 아직 안 된 고정 항목: 이름(여러 개면 '외') + 예정 -->
+          <template v-if="!c.rec && c.plans.length">
+            <span class="plan-name">{{ c.plans[0].item.name }}{{ c.plans.length > 1 ? ' 외' : '' }}</span>
+            <span class="amt plan">예정</span>
+          </template>
         </button>
       </div>
     </section>
@@ -248,7 +252,8 @@ export default {
 .summary span { font-size: 13px; }
 .summary strong { font-size: 20px; }
 .divider { border-left: 1px solid var(--line); padding-left: 16px; }
-.net { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text-sub); text-align: right; }
+.net { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text-sub); display: flex; align-items: baseline; gap: 8px; }
+.net-val { margin-left: auto; white-space: nowrap; }
 .net b { font-size: 14px; font-weight: 700; color: var(--text); }
 .net b.amount-income { color: var(--income); }
 .net b.amount-expense { color: var(--expense); }
@@ -272,9 +277,10 @@ export default {
 .amt { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--expense); }
 .amt.plus { color: var(--income); }
 .amt.back { color: var(--text-faint); }
-.summary .refund-note { font-size: 11px; color: var(--text-faint); }
+.summary .refund-note { min-width: 0; font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .amt.need { color: #A9533F; font-size: 9px; }
 .amt.plan { color: var(--text-faint); font-weight: 500; }
+.plan-name { max-width: 100%; font-size: 10px; line-height: 13px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell.planned { background: repeating-linear-gradient(135deg, transparent 0 5px, #F6EFEA 5px 7px); }
 .need-banner {
   display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0; padding: 12px 14px;
