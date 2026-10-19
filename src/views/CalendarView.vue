@@ -47,14 +47,11 @@
           @click="selected = c.date"
         >
           <span class="day">{{ c.d }}</span>
-          <span v-if="c.rec" class="store">{{ c.rec.top }}{{ c.rec.count + c.rec.needs > 1 ? ' 외' : '' }}</span>
-          <span v-if="c.rec && c.rec.spent > 0" class="amt">-{{ compact(c.rec.spent) }}</span>
-          <span v-else-if="c.rec && (c.rec.income || c.rec.spent < 0)" class="amt plus">+{{ compact(c.rec.income - c.rec.spent) }}</span>
-          <span v-else-if="c.rec && c.rec.needs" class="amt need">입력 필요</span>
-          <template v-if="!c.rec && c.plans.length">
-            <span class="store plan">{{ c.plans[0].item.name }}{{ c.plans.length > 1 ? ' 외' : '' }}</span>
-            <span class="amt plan">예정</span>
-          </template>
+          <!-- 그날 총수입·총지출만 (자세한 건 아래 목록) -->
+          <span v-if="c.inc > 0" class="amt plus">+{{ compact(c.inc) }}</span>
+          <span v-if="c.exp > 0" class="amt">-{{ compact(c.exp) }}</span>
+          <span v-if="c.rec && c.rec.needs && !c.inc && !c.exp" class="amt need">입력 필요</span>
+          <span v-if="!c.rec && c.plans.length" class="amt plan">예정</span>
         </button>
       </div>
     </section>
@@ -134,10 +131,13 @@ export default {
         const date = format(this.vy, this.vm, d)
         const rec = this.days[date]
         const plans = this.plans[date] || []
+        // 총수입 / 총지출 (환불만 있는 날은 돌려받은 돈이라 수입 쪽에)
+        const inc = rec ? rec.income + Math.max(0, -rec.spent) : 0
+        const exp = rec ? Math.max(0, rec.spent) : 0
         out.push({
-          d, date, rec, plans, wd: weekday(this.vy, this.vm, d),
+          d, date, rec, plans, inc, exp, wd: weekday(this.vy, this.vm, d),
           aria: `${this.vm}월 ${d}일` +
-            (rec ? `, ${rec.count}건, 지출 ${won(rec.spent)}원` + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
+            (rec ? (inc ? `, 수입 ${won(inc)}원` : '') + (exp ? `, 지출 ${won(exp)}원` : '') + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
               : plans.length ? `, 고정 항목 예정 ${plans.length}건` : ', 기록 없음')
         })
       }
@@ -251,11 +251,10 @@ export default {
 .sat .day, .weekdays .sat { color: var(--income); }
 .future .day { color: var(--text-faint); }
 .today .day { color: var(--today-fg); font-weight: 700; }
-.store { font-size: 10px; line-height: 13px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .amt { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--expense); }
 .amt.plus { color: var(--income); }
 .amt.need { color: #A9533F; font-size: 9px; }
-.store.plan, .amt.plan { color: var(--text-faint); font-weight: 500; }
+.amt.plan { color: var(--text-faint); font-weight: 500; }
 .cell.planned { background: repeating-linear-gradient(135deg, transparent 0 5px, #F6EFEA 5px 7px); }
 .need-banner {
   display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0; padding: 12px 14px;
