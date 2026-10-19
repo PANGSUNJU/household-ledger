@@ -4,11 +4,12 @@
  *  · 예산에 쓰는 돈 = 지출 − 저축/투자 (budgetSpent)
  *  · 분류별 = 그 분류 지출 − 그 분류에서 빼기로 한 환불
  *  · 수입 = 수입 중 환불 제외
+ *  · refund = 환불로 지출에서 뺀 돈 (화면에 '환불 ○원 빠짐'으로만 보여줌)
  *  · 확정(confirmed) 기록만, 금액 입력 필요 상태는 넣지 않음
  */
 
 export function summarize(txs) {
-  let spent = 0, savings = 0, income = 0
+  let spent = 0, savings = 0, income = 0, refund = 0
   const byCategory = new Map()  // id → { name, color, amount }
   const byStore = new Map()
   const byMethod = new Map()
@@ -31,6 +32,7 @@ export function summarize(txs) {
       add(byMethod, t.payment_method_id || 'none', t.payment_method?.name || '미지정', t.amount)
     } else if (isRefund) {
       spent -= t.amount
+      refund += t.amount
       add(byCategory, t.refund_category_id || 'none', '', -t.amount)
       add(byStore, t.store_name || '(사용처 없음)', t.store_name || '(사용처 없음)', -t.amount)
       add(byMethod, t.payment_method_id || 'none', t.payment_method?.name || '미지정', -t.amount)
@@ -44,22 +46,23 @@ export function summarize(txs) {
     .filter((v) => v.amount !== 0)
     .sort((a, b) => b.amount - a.amount)
 
-  return { spent, savings, budgetSpent: spent - savings, income, byCategory: sorted(byCategory), byStore: sorted(byStore), byMethod: sorted(byMethod) }
+  return { spent, savings, budgetSpent: spent - savings, income, refund, byCategory: sorted(byCategory), byStore: sorted(byStore), byMethod: sorted(byMethod) }
 }
 
-/** 날짜별 합계 (캘린더용): { 'YYYY-MM-DD': { spent, income, top: '다이소', count, needs } } */
+/** 날짜별 합계 (캘린더용): { 'YYYY-MM-DD': { spent, income, refund, top: '다이소', count, needs } }
+ *  · spent 는 환불을 뺀 값 (환불이 더 크면 0보다 작아짐) */
 export function byDay(txs) {
   const days = {}
   for (const t of txs) {
     if (t.status === 'needs_amount') {
       // 금액 입력 필요(고정 지출): 합계에는 안 넣고 표시만
-      const d = (days[t.date] ||= { spent: 0, income: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
+      const d = (days[t.date] ||= { spent: 0, income: 0, refund: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
       d.needs += 1
       if (!d.top) d.top = t.store_name || '고정 지출'
       continue
     }
     if (t.status !== 'confirmed' || t.amount == null) continue
-    const d = (days[t.date] ||= { spent: 0, income: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
+    const d = (days[t.date] ||= { spent: 0, income: 0, refund: 0, count: 0, needs: 0, top: null, topAmount: 0, topIsExpense: false })
     d.count += 1
     const name = t.store_name || t.category?.name || (t.kind === 'expense' ? '지출' : '수입')
     if (t.kind === 'expense') {
@@ -67,7 +70,7 @@ export function byDay(txs) {
       // 칸에 보일 이름: 그날 가장 큰 지출 (지출이 없으면 수입)
       if (!d.topIsExpense || t.amount > d.topAmount) { d.topAmount = t.amount; d.top = name; d.topIsExpense = true }
     } else {
-      if (t.category?.is_refund) d.spent -= t.amount
+      if (t.category?.is_refund) { d.spent -= t.amount; d.refund += t.amount }
       else d.income += t.amount
       if (!d.topIsExpense && t.amount > d.topAmount) { d.topAmount = t.amount; d.top = name }
     }
