@@ -251,9 +251,10 @@ async function deleteQuickEntryRaw(id) {
 }
 
 /** 순서 바꾸기: 목록 전체의 sort_order 를 다시 매긴다 (table: 'payment_methods' | 'categories' | 'quick_entries') */
-async function saveOrderRaw(table, ids) {
-  await Promise.all(ids.map((id, i) =>
-    supabase.from(table).update({ sort_order: i + 1 }).eq('id', id).then(check)))
+/** 순서 저장: [{ id, sort_order }] (바뀐 줄만 넘기면 그만큼만 저장) */
+async function saveOrderRaw(table, rows) {
+  await Promise.all(rows.map(({ id, sort_order }) =>
+    supabase.from(table).update({ sort_order }).eq('id', id).then(check)))
 }
 
 /* ---------- 설정: 화면 잠금 ---------- */

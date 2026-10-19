@@ -8,12 +8,8 @@
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p v-if="loaded && !items.length" class="intro">자주 쓰는 지출을 등록하면 입력할 때 한 번에 채워져요</p>
 
-      <section v-if="items.length" class="card" aria-label="등록된 빠른 입력">
-        <ManageRow
-          v-for="(q, i) in items" :key="q.id" :name="q.name"
-          :first="i === 0" :last="i === items.length - 1"
-          @up="move(i, -1)" @down="move(i, 1)"
-        >
+      <section v-if="items.length" v-sortable="onSort" class="card" aria-label="등록된 빠른 입력">
+        <ManageRow v-for="q in items" :key="q.id" :name="q.name">
           <template #lead>
             <CatTile :name="catOf(q)?.name || '기타'" :color="catOf(q)?.color" />
           </template>
@@ -63,7 +59,7 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import CategoryGrid from '@/components/CategoryGrid.vue'
 import CatTile from '@/components/CatTile.vue'
 import { listQuickEntries, listCategories, listPaymentMethods, addQuickEntry, updateQuickEntry, deleteQuickEntry } from '@/lib/api'
-import { moveAndSave } from '@/lib/manage'
+import { reorder, saveMoved } from '@/lib/manage'
 import { calcAmount, won } from '@/lib/money'
 
 export default {
@@ -117,9 +113,11 @@ export default {
         this.sheet.open = false
       } catch (e) { this.fail(e, '삭제하지 못했어요.') } finally { this.busy = false }
     },
-    async move(i, dir) {
+    async onSort(from, to) {
       this.error = ''
-      try { this.items = await moveAndSave('quick_entries', this.items, i, dir) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
+      const next = reorder(this.items, from, to)
+      this.items = next
+      try { await saveMoved('quick_entries', next, from, to) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
     }
   }
 }

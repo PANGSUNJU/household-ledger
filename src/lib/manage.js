@@ -1,13 +1,19 @@
-/* 관리 화면 공통: 목록에서 한 칸 위/아래로 옮기고 순서를 저장 */
+/* 관리 화면 공통: 끌어서 옮긴 순서 정리·저장 */
 import { saveOrder } from './api'
 
-export async function moveAndSave(table, list, index, dir) {
-  const j = index + dir
-  if (j < 0 || j >= list.length) return list
+/** from 번째를 to 자리로 옮긴 새 목록 (sort_order 도 1부터 다시 매김) */
+export function reorder(list, from, to) {
   const next = list.slice()
-  ;[next[index], next[j]] = [next[j], next[index]]
-  await saveOrder(table, next.map((x) => x.id))
+  const [x] = next.splice(from, 1)
+  next.splice(to, 0, x)
+  next.forEach((it, i) => { it.sort_order = i + 1 })
   return next
+}
+
+/** 끌어서 옮긴 순서를 저장: 자리가 바뀐 줄만 (from~to 사이) */
+export async function saveMoved(table, next, from, to) {
+  const lo = Math.min(from, to), hi = Math.max(from, to)
+  await saveOrder(table, next.slice(lo, hi + 1).map((x) => ({ id: x.id, sort_order: x.sort_order })))
 }
 
 /* 분류 색 고르기용 파스텔 (디자인 "기본 + 파스텔 색") */
