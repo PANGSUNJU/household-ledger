@@ -104,6 +104,17 @@ export function statsRange(kind, custom = null) {
     const from = addDays(t, -29)
     return { from, to: t, cmp: { from: addDays(from, -30), to: addDays(from, -1) }, cmpLabel: '그 앞 30일' }
   }
+  // 올해: 1월 1일~오늘 (작년 같은 기간과 비교)
+  if (kind === 'year') {
+    const from = format(y, 1, 1)
+    const p = parse(t)
+    const lastTo = format(y - 1, p.m, Math.min(p.d, daysInMonth(y - 1, p.m)))
+    return { from, to: t, cmp: { from: format(y - 1, 1, 1), to: lastTo }, cmpLabel: '작년 같은 기간' }
+  }
+  // 작년: 1월 1일~12월 31일 (연말정산 때 보기 좋게, 재작년과 비교)
+  if (kind === 'lastyear') {
+    return { from: format(y - 1, 1, 1), to: format(y - 1, 12, 31), cmp: { from: format(y - 2, 1, 1), to: format(y - 2, 12, 31) }, cmpLabel: '재작년' }
+  }
   if (kind === 'custom' && custom?.from && custom?.to) {
     const [from, to] = custom.from <= custom.to ? [custom.from, custom.to] : [custom.to, custom.from]
     const n = daysBetween(from, to)
