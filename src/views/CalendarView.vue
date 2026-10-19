@@ -22,19 +22,19 @@
 
     <section class="card summary" aria-label="이번 달 요약">
       <div>
-        <span class="muted">{{ vm }}월 지출</span>
+        <span class="muted">지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
         <!-- 환불 안내: 줄 자리는 늘 비워 둠 (환불 있는 달·없는 달 카드 높이 같게 → 달력이 안 움직임) -->
         <span class="refund-note">{{ summary.refund > 0 ? `환불 ${won(summary.refund)}원` : '' }}</span>
       </div>
       <div class="divider">
-        <span class="muted">{{ vm }}월 수입</span>
+        <span class="muted">수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
       <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
     </section>
 
-    <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
+    <BudgetCard :y="vy" :m="vm" :show-month="false" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
 
     <section class="card grid-wrap" aria-label="달력">
       <div class="weekdays">
