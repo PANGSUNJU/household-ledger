@@ -15,7 +15,7 @@
           @up="move(i, -1)" @down="move(i, 1)"
         >
           <template #lead>
-            <span class="tile" :style="{ background: catOf(q)?.color || '#F3EFEA' }">{{ (catOf(q)?.name || '기타').split(/[·/]/)[0].slice(0, 2) }}</span>
+            <CatTile :name="catOf(q)?.name || '기타'" :color="catOf(q)?.color" />
           </template>
           <span>{{ q.name }} <strong class="amt">{{ won(q.amount) }}원</strong></span>
           <span class="muted small">{{ catOf(q)?.name || '미분류' }} · {{ pmOf(q)?.name || '미지정' }}</span>
@@ -61,13 +61,14 @@ import ScreenHeader from '@/components/ScreenHeader.vue'
 import ManageRow from '@/components/ManageRow.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import CategoryGrid from '@/components/CategoryGrid.vue'
+import CatTile from '@/components/CatTile.vue'
 import { listQuickEntries, listCategories, listPaymentMethods, addQuickEntry, updateQuickEntry, deleteQuickEntry } from '@/lib/api'
 import { moveAndSave } from '@/lib/manage'
 import { calcAmount, won } from '@/lib/money'
 
 export default {
   name: 'QuickEntriesView',
-  components: { ScreenHeader, ManageRow, BottomSheet, CategoryGrid },
+  components: { ScreenHeader, ManageRow, BottomSheet, CategoryGrid, CatTile },
   data() {
     return {
       items: [], categories: [], methods: [], loaded: false, busy: false, error: '',
@@ -126,7 +127,6 @@ export default {
 
 <style scoped src="./manage.css"></style>
 <style scoped>
-.tile { width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius); font-size: 12px; font-weight: 600; color: #4A3F3A; display: flex; align-items: center; justify-content: center; }
 .amt { font-weight: 600; margin-left: 4px; }
 .two { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; }
 .col { display: flex; flex-direction: column; gap: 6px; }
