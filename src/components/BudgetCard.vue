@@ -50,6 +50,7 @@
 <script>
 import BottomSheet from './BottomSheet.vue'
 import { getBudget, saveBudget, deleteBudget } from '@/lib/api'
+import { dataState } from '@/lib/sync'
 import { won, calcAmount } from '@/lib/money'
 import { todayKST, parse, format, daysInMonth } from '@/lib/date'
 
@@ -76,6 +77,7 @@ export default {
     return { own: { loaded: false, ready: false, budget: null }, sheet: false, amountText: '', busy: false, err: '' }
   },
   computed: {
+    dataState() { return dataState },
     state() { return this.preset || this.own },
     budget() { return this.state.budget },
     month01() { return format(this.y, this.m, 1) },
@@ -86,7 +88,11 @@ export default {
     perDay() { return Math.floor(Math.max(0, this.left) / this.daysLeft) },
     amount() { const a = calcAmount(this.amountText); return a > 0 ? a : null }
   },
-  watch: { month01() { if (!this.preset) this.load() } },
+  watch: {
+    month01() { if (!this.preset) this.load() },
+    // 다른 화면에서 예산을 바꾸면 (통계 화면처럼 스스로 불러오는 경우) 다시
+    'dataState.version'() { if (!this.preset) this.load() }
+  },
   created() { if (!this.preset) this.load() },
   methods: {
     won,

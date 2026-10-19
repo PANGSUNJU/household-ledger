@@ -28,7 +28,18 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: () => ({ top: 0 })
+  // 아래 메뉴 화면(기억해 두는 화면)은 보던 스크롤 위치로, 나머지는 맨 위로
+  scrollBehavior(to, from, saved) {
+    if (saved) return saved
+    if (to.meta.nav && scrollMemo.has(to.name)) return { top: scrollMemo.get(to.name) }
+    return { top: 0 }
+  }
+})
+
+const scrollMemo = new Map()
+router.beforeEach((to, from) => {
+  if (from.meta?.nav && from.name) scrollMemo.set(from.name, window.scrollY)
+  return true
 })
 
 // 로그인 확인

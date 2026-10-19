@@ -23,7 +23,7 @@
       <span v-if="searching" class="count muted">{{ visible.length }}건 찾음</span>
     </div>
 
-    <p v-if="loading" class="msg muted">불러오는 중…</p>
+    <p v-if="loading && !freshAt" class="msg muted">불러오는 중…</p>
     <p v-else-if="error" class="msg error">{{ error }}</p>
     <p v-else-if="!groups.length" class="msg muted">{{ searching ? '찾는 기록이 없어요.' : '이 달에는 기록이 없어요.' }}</p>
 
@@ -41,11 +41,13 @@
 import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
+import { dataState, freshness } from '@/lib/sync'
 import { listMonth, searchTransactions } from '@/lib/api'
 import { todayKST, parse, addMonths, label } from '@/lib/date'
 
 export default {
   name: 'ListView',
+  mixins: [freshness],
   components: { AppIcon, TxRow, MonthPicker },
   data() {
     const { y, m } = parse(todayKST())
@@ -73,15 +75,20 @@ export default {
       return [...byDate.entries()].map(([date, items]) => ({ date, label: label(date), items }))
     }
   },
-  created() { this.load() },
+  created() { this.firstShow = true; this.load() },
+  activated() {
+    if (this.firstShow) { this.firstShow = false; return }
+    if (this.needsRefresh()) this.load()
+  },
   beforeUnmount() { clearTimeout(this.timer) },
   methods: {
     async load() {
       const seq = ++this.reqSeq   // 검색어를 빨리 바꾸면 늦게 온 앞 검색 결과는 버린다
+      const ver = dataState.version
       this.loading = true; this.error = ''
       try {
         const rows = this.searching ? await searchTransactions(this.query) : await listMonth(this.y, this.m)
-        if (seq === this.reqSeq) this.txs = rows
+        if (seq === this.reqSeq) { this.txs = rows; this.markFresh(ver) }
       } catch (e) {
         if (seq !== this.reqSeq) return
         this.error = '기록을 불러오지 못했어요.'
