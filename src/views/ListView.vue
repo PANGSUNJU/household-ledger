@@ -7,6 +7,11 @@
         <button type="button" class="ym" aria-label="연월 선택" @click="picker = true">{{ y }}년 {{ m }}월<AppIcon name="down" :size="16" /></button>
         <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="20" /></button>
       </div>
+      <!-- 전체 기간에서 찾는 중: 연월 자리에 표시 + 돌아가기 -->
+      <div v-else class="all-scope">
+        <span>전체 기간</span>
+        <button type="button" class="back-month" @click="setScope('month')"><AppIcon name="back" :size="16" />{{ m }}월로</button>
+      </div>
     </header>
 
     <label class="search">
@@ -20,13 +25,7 @@
         v-for="f in FILTERS" :key="f.v" type="button" role="radio"
         :aria-checked="filter === f.v" :class="{ on: filter === f.v }" @click="filter = f.v"
       >{{ f.t }}</button>
-      <span v-if="searching" class="count muted">{{ visible.length }}건 찾음</span>
-    </div>
-
-    <!-- 검색 중: 고른 달에서만 / 전체 기간 -->
-    <div v-if="searching" class="scope" role="radiogroup" aria-label="검색 기간">
-      <button type="button" role="radio" :aria-checked="scope === 'month'" :class="{ on: scope === 'month' }" @click="setScope('month')">{{ m }}월에서</button>
-      <button type="button" role="radio" :aria-checked="scope === 'all'" :class="{ on: scope === 'all' }" @click="setScope('all')">전체 기간</button>
+      <span v-if="searching" class="count muted">{{ scope === 'month' ? `${m}월` : '전체' }} {{ visible.length }}건</span>
     </div>
 
     <p v-if="loading && !freshAt" class="msg muted">불러오는 중…</p>
@@ -39,6 +38,11 @@
       </div>
       <TxRow v-for="t in g.items" :key="t.id" :tx="t" :original-amount="originals[t.refund_of_id]" class="row" />
     </section>
+
+    <!-- 검색은 고른 달에서 먼저. 더 넓게 보고 싶을 때만 -->
+    <button v-if="searching && scope === 'month' && !error && !(loading && !freshAt)" type="button" class="wider" @click="setScope('all')">
+      다른 달에서도 찾기<AppIcon name="next" :size="16" />
+    </button>
     <MonthPicker :open="picker" :y="y" :m="m" @pick="goMonth" @close="picker = false" />
   </main>
 </template>
@@ -143,9 +147,12 @@ export default {
 .filters button { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 17px; background: var(--surface); font-size: 13px; }
 .filters button.on { border-color: var(--primary); background: var(--primary); color: var(--on-primary); font-weight: 600; }
 .count { margin-left: auto; font-size: 13px; }
-.scope { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface-soft, #F3EFEA); border-radius: 12px; }
-.scope button { height: 34px; border: 0; border-radius: 10px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-sub); }
-.scope button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(60, 40, 30, 0.12); }
+.all-scope { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.back-month { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); font-size: 13px; color: var(--text-sub); }
+.wider {
+  display: flex; align-items: center; justify-content: center; gap: 4px; height: 46px; margin-top: 2px;
+  border: 1px dashed var(--border); border-radius: 12px; background: transparent; font-size: 14px; font-weight: 600; color: var(--text-sub);
+}
 .msg { margin: 8px 0; font-size: 14px; }
 .error { color: var(--expense); }
 .group { padding: 12px 16px 4px 16px; }
