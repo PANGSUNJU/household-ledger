@@ -22,16 +22,16 @@
 
     <section class="card summary" aria-label="이번 달 요약">
       <div>
-        <span class="muted">{{ m }}월 지출</span>
+        <span class="muted">{{ vm }}월 지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
       </div>
       <div class="divider">
-        <span class="muted">{{ m }}월 수입</span>
+        <span class="muted">{{ vm }}월 수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
     </section>
 
-    <BudgetCard :key="y + '-' + m" :y="y" :m="m" :spent="summary.budgetSpent" class="budget-card" />
+    <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
 
     <section class="card grid-wrap" aria-label="달력">
       <div class="weekdays">
@@ -91,7 +91,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
 import BudgetCard from '@/components/BudgetCard.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
-import { listMonth, listRecurringItems, listNeedsAmount, listCategories, getRemindSettings, saveRemindSettings } from '@/lib/api'
+import { listMonth, listRecurringItems, listNeedsAmount, listCategories, getRemindSettings, saveRemindSettings, getBudget } from '@/lib/api'
 import { shouldRemind } from '@/lib/remind'
 import { upcoming } from '@/lib/recurring'
 import { todayKST, parse, format, daysInMonth, weekday, addMonths, label } from '@/lib/date'
@@ -109,31 +109,33 @@ export default {
     const { y, m } = parse(selected)
     return {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
-      today, y, m, selected, picker: false,
+      // y·m: 위 제목(바로 바뀜) / vy·vm: 아래 내용(그 달 기록을 다 불러온 뒤 한꺼번에 바뀜)
+      today, y, m, vy: y, vm: m, selected, nextSelected: null, picker: false,
+      budget: { loaded: false, ready: false, budget: null },
       txs: [], loading: false, error: '',
       items: [], needCount: 0, catColors: {}, remind: null, reqSeq: 0
     }
   },
   computed: {
-    blanks() { return weekday(this.y, this.m, 1) },
+    blanks() { return weekday(this.vy, this.vm, 1) },
     days() { return byDay(this.txs) },
     /** 날짜별 '예정' 고정 항목 (오늘 다음 날부터) */
     plans() {
       const out = {}
-      const from = format(this.y, this.m, 1)
-      const to = format(this.y, this.m, daysInMonth(this.y, this.m))
+      const from = format(this.vy, this.vm, 1)
+      const to = format(this.vy, this.vm, daysInMonth(this.vy, this.vm))
       for (const o of upcoming(this.items, from, to, this.today)) (out[o.date] ||= []).push(o)
       return out
     },
     cells() {
       const out = []
-      for (let d = 1; d <= daysInMonth(this.y, this.m); d++) {
-        const date = format(this.y, this.m, d)
+      for (let d = 1; d <= daysInMonth(this.vy, this.vm); d++) {
+        const date = format(this.vy, this.vm, d)
         const rec = this.days[date]
         const plans = this.plans[date] || []
         out.push({
-          d, date, rec, plans, wd: weekday(this.y, this.m, d),
-          aria: `${this.m}월 ${d}일` +
+          d, date, rec, plans, wd: weekday(this.vy, this.vm, d),
+          aria: `${this.vm}월 ${d}일` +
             (rec ? `, ${rec.count}건, 지출 ${won(rec.spent)}원` + (rec.needs ? `, 금액 입력 필요 ${rec.needs}건` : '')
               : plans.length ? `, 고정 항목 예정 ${plans.length}건` : ', 기록 없음')
         })
@@ -155,20 +157,31 @@ export default {
     won, signed, compact,
     async load() {
       const seq = ++this.reqSeq   // 빨리 달을 넘기면 늦게 온 앞 달 응답은 버린다
+      const y = this.y, m = this.m
       this.loading = true; this.error = ''
+      // 아래 내용은 새 달 기록·예산이 다 온 뒤 한 번에 바꾼다 (깜빡임 방지)
+      const show = (txs, budget) => {
+        this.vy = y; this.vm = m; this.txs = txs
+        if (budget) this.budget = budget
+        if (this.nextSelected) { this.selected = this.nextSelected; this.nextSelected = null }
+      }
       try {
         // 고정 항목·금액 입력 필요는 0002 SQL 전이면 실패할 수 있어서 따로 (실패해도 캘린더는 보인다)
-        const [txs, items, needs, cats] = await Promise.all([
-          listMonth(this.y, this.m),
+        const [txs, items, needs, cats, budget] = await Promise.all([
+          listMonth(y, m),
           listRecurringItems().catch(() => []),
           listNeedsAmount().catch(() => []),
-          listCategories({ includeHidden: true }).catch(() => [])
+          listCategories({ includeHidden: true }).catch(() => []),
+          // 예산 표가 없으면(0003 SQL 전) 카드만 숨긴다
+          getBudget(format(y, m, 1)).then((b) => ({ loaded: true, ready: true, budget: b }), () => ({ loaded: true, ready: false, budget: null }))
         ])
         if (seq !== this.reqSeq) return
-        this.txs = txs; this.items = items; this.needCount = needs.length
+        show(txs, budget)
+        this.items = items; this.needCount = needs.length
         this.catColors = Object.fromEntries(cats.map((c) => [c.id, c.color]))
       } catch (e) {
         if (seq !== this.reqSeq) return
+        show([], null)
         this.error = '기록을 불러오지 못했어요.'
         console.error(e)
       } finally {
@@ -185,7 +198,7 @@ export default {
       if (y === this.y && m === this.m) return
       this.y = y; this.m = m
       const sameMonthAsToday = format(y, m, 1).slice(0, 7) === this.today.slice(0, 7)
-      this.selected = sameMonthAsToday ? this.today : format(y, m, 1)
+      this.nextSelected = sameMonthAsToday ? this.today : format(y, m, 1)
       this.load()
     },
     async remindDone() {
