@@ -10,17 +10,27 @@
       </p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-      <!-- 이번 달 고정 지출 -->
-      <section v-if="loaded && !setupMissing && (items.length || doneTxs.length)" class="card month" :aria-label="`${thisM}월 고정 지출`">
+      <!-- 이번 달 고정: 지출 | 수입 나란히 (캘린더 요약 카드와 같은 모양) -->
+      <section v-if="loaded && !setupMissing && (items.length || doneTxs.length)" class="card month" :aria-label="`${thisM}월 고정 지출·수입`">
         <div class="month-head">
-          <span class="muted">{{ thisM }}월 고정 지출</span>
+          <span class="muted">{{ thisM }}월 고정</span>
           <router-link to="/stats/fixed" class="link">달마다 보기 →</router-link>
         </div>
-        <strong class="big">{{ won(month.total) }}원<span v-if="month.unknown" class="unknown"> + 금액 미정 {{ month.unknown }}건</span></strong>
-        <div class="split">
-          <div><span class="muted small">이미 나감</span><b>{{ won(month.done) }}원</b></div>
-          <div><span class="muted small">남은 예정</span><b>{{ won(month.left) }}원</b></div>
-          <div v-if="month.income"><span class="muted small">고정 수입</span><b class="amount-income">{{ won(month.income) }}원</b></div>
+        <div class="cols">
+          <div class="col-exp">
+            <span class="muted small">고정 지출</span>
+            <strong class="big amount-expense">{{ won(month.total) }}원</strong>
+            <span v-if="month.unknown" class="unknown">+ 금액 미정 {{ month.unknown }}건</span>
+            <span class="sub">나감 {{ won(month.done) }}원</span>
+            <span class="sub">예정 {{ won(month.left) }}원</span>
+          </div>
+          <div class="col-inc">
+            <span class="muted small">고정 수입</span>
+            <strong class="big amount-income">{{ won(month.inTotal) }}원</strong>
+            <span v-if="month.inUnknown" class="unknown">+ 금액 미정 {{ month.inUnknown }}건</span>
+            <span class="sub">들어옴 {{ won(month.inDone) }}원</span>
+            <span class="sub">예정 {{ won(month.inLeft) }}원</span>
+          </div>
         </div>
       </section>
 
@@ -38,7 +48,7 @@
               <span class="tile" :style="{ background: catOf(it)?.color || '#F3EFEA' }">{{ dayBadge(it) }}</span>
             </template>
             <span>{{ it.name }}
-              <strong v-if="it.is_amount_fixed" class="amt" :class="{ 'amount-income': it.kind === 'income' }">{{ won(it.amount) }}원</strong>
+              <strong v-if="it.is_amount_fixed" class="amt" :class="it.kind === 'income' ? 'amount-income' : 'exp'">{{ won(it.amount) }}원</strong>
               <span v-else class="vary">매달 다름</span>
             </span>
             <span class="muted small">{{ scheduleText(it) }}{{ nextText(it) }}</span>
@@ -184,20 +194,20 @@ export default {
     month01() { return format(this.thisY, this.thisM, 1) },
     /** 이번 달(회차 기준) 고정 지출: 이미 나간 것 + 남은 예정 (저축/투자도 지출로 넣는다, 통계와 같은 규칙) */
     month() {
-      let done = 0, income = 0, unknown = 0, left = 0
+      let done = 0, unknown = 0, left = 0, inDone = 0, inLeft = 0, inUnknown = 0
       for (const t of this.doneTxs) {
-        if (t.kind === 'income') { if (t.status === 'confirmed') income += t.amount; continue }
+        if (t.kind === 'income') { if (t.status === 'confirmed') inDone += t.amount; else inUnknown += 1; continue }
         if (t.status === 'needs_amount') unknown += 1
         else done += t.amount
       }
       const end = addDays(format(this.thisY, this.thisM, daysInMonth(this.thisY, this.thisM)), 3)
       for (const o of upcoming(this.activeItems, this.today, end, this.today)) {
         if (o.month !== this.month01) continue
-        if (o.item.kind === 'income') { if (o.item.is_amount_fixed) income += o.item.amount; continue }
+        if (o.item.kind === 'income') { if (o.item.is_amount_fixed) inLeft += o.item.amount; else inUnknown += 1; continue }
         if (o.item.is_amount_fixed) left += o.item.amount
         else unknown += 1
       }
-      return { done, left, total: done + left, income, unknown }
+      return { done, left, total: done + left, unknown, inDone, inLeft, inTotal: inDone + inLeft, inUnknown }
     },
     kindCats() { return this.categories.filter((c) => c.kind === this.sheet.kind && c.is_active && !c.is_refund) },
     sheetAmount() { return calcAmount(this.sheet.amountText) },
@@ -332,6 +342,7 @@ export default {
 <style scoped>
 .tile { width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius); font-size: 11px; font-weight: 700; color: #4A3F3A; display: flex; align-items: center; justify-content: center; }
 .amt { font-weight: 600; margin-left: 4px; }
+.amt.exp { color: var(--expense); }
 .vary { margin-left: 6px; font-size: 12px; font-weight: 600; color: #8E3F33; background: #FFE6DA; border-radius: 6px; padding: 1px 6px; }
 .group-title { margin: 6px 0 -4px 4px; font-size: 13px; font-weight: 600; color: var(--text-sub); }
 .empty { padding: 4px 4px 0 4px; }
@@ -340,11 +351,12 @@ export default {
 .month { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .month-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
 .link { color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
-.big { font-size: 24px; letter-spacing: -0.4px; }
-.unknown { font-size: 14px; font-weight: 600; color: #8E3F33; }
-.split { display: flex; gap: 18px; flex-wrap: wrap; padding-top: 4px; }
-.split div { display: flex; flex-direction: column; }
-.split b { font-size: 15px; }
+.big { font-size: 20px; letter-spacing: -0.4px; }
+.unknown { font-size: 12px; font-weight: 600; color: #8E3F33; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 2px; }
+.cols > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.col-inc { padding-left: 12px; border-left: 1px solid var(--line-soft); }
+.cols .sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .needs { padding: 14px 16px 4px 16px; border: 1.5px solid #F2C2B0; }
 .needs h2 { margin: 0; font-size: 15px; }
