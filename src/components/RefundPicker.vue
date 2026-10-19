@@ -7,7 +7,7 @@
         <label class="search">
           <AppIcon name="search" :size="18" />
           <span class="sr-only">구매 검색</span>
-          <input v-model="query" type="search" placeholder="가게·금액으로 찾기">
+          <input v-model="query" type="search" placeholder="사용처·금액으로 찾기">
         </label>
         <label class="receipt" :class="{ busy: reading }">
           <AppIcon name="image" :size="18" />{{ reading ? readingText : '영수증으로 찾기' }}
@@ -151,20 +151,20 @@ export default {
         const text = await readImage(file, ({ stage, pct }) => { this.readingText = stage === 'read' ? `읽는 중 ${pct}%` : '준비 중…' })
         const r = parseReceipt(text, todayKST())
         this.$emit('read-receipt', r)
-        if (!r.amount) { this.receiptMsg = '금액을 읽지 못했어요. 가게·금액으로 찾아 주세요.'; return }
+        if (!r.amount) { this.receiptMsg = '금액을 읽지 못했어요. 사용처·금액으로 찾아 주세요.'; return }
         const same = this.items.filter((t) => t.amount === r.amount)
         const norm = (s) => (s || '').replace(/\s|\(주\)|㈜/g, '')
         const best = same.filter((t) => r.store && (norm(t.store_name).includes(norm(r.store)) || norm(r.store).includes(norm(t.store_name))))
         const pick = best.length === 1 ? best[0] : same.length === 1 ? same[0] : null
         if (pick) {
           this.$emit('update:original', pick)
-          this.receiptMsg = `영수증(${r.store || '가게 모름'} ${won(r.amount)}원)과 같은 구매를 찾았어요.`
+          this.receiptMsg = `영수증(${r.store || '사용처 모름'} ${won(r.amount)}원)과 같은 구매를 찾았어요.`
         } else {
           this.query = String(r.amount)
           this.receiptMsg = same.length ? `${won(r.amount)}원 구매가 여러 개예요. 골라 주세요.` : `${won(r.amount)}원 구매를 찾지 못했어요.`
         }
       } catch (err) {
-        this.receiptMsg = '영수증을 읽지 못했어요. 가게·금액으로 찾아 주세요.'
+        this.receiptMsg = '영수증을 읽지 못했어요. 사용처·금액으로 찾아 주세요.'
         console.error(err)
       } finally { this.reading = false }
     },

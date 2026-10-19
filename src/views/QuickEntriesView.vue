@@ -30,7 +30,7 @@
       <form class="sheet-form" @submit.prevent="saveSheet">
         <div class="two">
           <div class="col">
-            <label for="q-name" class="lbl">이름 (가게)</label>
+            <label for="q-name" class="lbl">이름 (사용처)</label>
             <input id="q-name" v-model="sheet.name" class="box" type="text" maxlength="30" placeholder="예: 회사 앞 커피" required>
           </div>
           <div class="col">

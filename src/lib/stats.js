@@ -27,12 +27,12 @@ export function summarize(txs) {
       if (t.category?.is_savings) savings += t.amount
       spent += t.amount
       add(byCategory, t.category_id || 'none', t.category?.name || '미분류', t.amount, { color: t.category?.color })
-      add(byStore, t.store_name || '(가게 없음)', t.store_name || '(가게 없음)', t.amount)
+      add(byStore, t.store_name || '(사용처 없음)', t.store_name || '(사용처 없음)', t.amount)
       add(byMethod, t.payment_method_id || 'none', t.payment_method?.name || '미지정', t.amount)
     } else if (isRefund) {
       spent -= t.amount
       add(byCategory, t.refund_category_id || 'none', '', -t.amount)
-      add(byStore, t.store_name || '(가게 없음)', t.store_name || '(가게 없음)', -t.amount)
+      add(byStore, t.store_name || '(사용처 없음)', t.store_name || '(사용처 없음)', -t.amount)
       add(byMethod, t.payment_method_id || 'none', t.payment_method?.name || '미지정', -t.amount)
     } else {
       income += t.amount

@@ -12,7 +12,7 @@
         <p class="lead">
           {{ mode === 'capture'
             ? '카드·은행 앱의 이용내역 화면을 캡처해서 올려 주세요. 한 장에 여러 건이 있어도 한 번에 읽어요.'
-            : '종이 영수증 사진이나 전자영수증 캡처를 올려 주세요. 날짜·가게·합계를 읽고, 품목은 메모에 붙여요.' }}
+            : '종이 영수증 사진이나 전자영수증 캡처를 올려 주세요. 날짜·사용처·합계를 읽고, 품목은 메모에 붙여요.' }}
         </p>
         <label class="pick">
           <AppIcon name="image" :size="22" />
@@ -61,7 +61,7 @@
         <!-- 취소 영수증: 원래 구매 찾기 -->
         <section v-if="g.mode === 'receipt' && g.receipt?.canceled" class="card cancel-receipt">
           <strong>취소·환불 영수증이에요</strong>
-          <span class="muted small">{{ g.receipt.store || '가게 모름' }} · {{ label(g.receipt.date) }} · {{ won(g.receipt.amount || 0) }}원</span>
+          <span class="muted small">{{ g.receipt.store || '사용처 모름' }} · {{ label(g.receipt.date) }} · {{ won(g.receipt.amount || 0) }}원</span>
           <p v-if="!g.matches.length" class="muted small">같은 구매를 못 찾았어요</p>
           <button
             v-for="t in g.matches" :key="t.id" type="button" class="match" @click="toRefund(g.receipt, t)"
@@ -82,7 +82,7 @@
               :disabled="it.kind === 'cancel'"
             >
             <div class="names">
-              <input v-model="it.store" class="store" type="text" maxlength="50" :aria-label="'가게 이름'" placeholder="가게 이름">
+              <input v-model="it.store" class="store" type="text" maxlength="50" :aria-label="it.kind === 'income' ? '입금처' : '사용처'" :placeholder="it.kind === 'income' ? '입금처' : '사용처'">
               <span class="sub">
                 <input v-model="it.date" type="date" class="date" aria-label="날짜">
                 <template v-if="it.raw && it.raw !== it.store"> · 원래 이름: {{ it.raw }}</template>
@@ -113,7 +113,7 @@
 
           <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">10억 원까지 넣을 수 있어요</p>
           <p v-if="!it.date && it.kind !== 'cancel'" class="warn">날짜를 넣어 주세요</p>
-          <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·가게 기록이 이미 있어요</p>
+          <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·사용처 기록이 이미 있어요</p>
           <div v-if="it.kind === 'cancel'" class="info">
             <span>취소 건이라 빼뒀어요</span>
             <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
