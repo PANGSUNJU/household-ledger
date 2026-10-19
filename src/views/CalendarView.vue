@@ -29,6 +29,7 @@
         <span class="muted">{{ vm }}월 수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
+      <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net > 0 ? '+' : net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
     </section>
 
     <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
@@ -143,6 +144,8 @@ export default {
       return out
     },
     summary() { return summarize(this.txs) },
+    /** 그 달 남은 돈 = 수입 − 지출 (지출은 저축/투자 포함, 환불 반영) */
+    net() { return this.summary.income - this.summary.spent },
     selectedTxs() { return this.txs.filter((t) => t.date === this.selected) },
     showRemind() { return shouldRemind(this.remind) },
     selectedPlans() { return this.plans[this.selected] || [] },
@@ -227,6 +230,10 @@ export default {
 .summary span { font-size: 13px; }
 .summary strong { font-size: 20px; }
 .divider { border-left: 1px solid var(--line); padding-left: 16px; }
+.net { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text-sub); text-align: right; }
+.net b { font-size: 14px; font-weight: 700; color: var(--text); }
+.net b.amount-income { color: var(--income); }
+.net b.amount-expense { color: var(--expense); }
 
 .grid-wrap { padding: 10px 6px 8px 6px; }
 .weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; font-size: 12px; font-weight: 500; color: var(--text-sub); padding-bottom: 6px; }
