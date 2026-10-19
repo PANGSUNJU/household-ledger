@@ -30,7 +30,6 @@
     <section v-for="g in groups" :key="g.date" class="card group">
       <div class="g-head">
         <h2>{{ g.label }}</h2>
-        <span class="muted">{{ g.total }}</span>
       </div>
       <TxRow v-for="t in g.items" :key="t.id" :tx="t" :original-amount="originals[t.refund_of_id]" class="row" />
     </section>
@@ -44,7 +43,6 @@ import TxRow from '@/components/TxRow.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
 import { listMonth, searchTransactions } from '@/lib/api'
 import { todayKST, parse, addMonths, label } from '@/lib/date'
-import { won } from '@/lib/money'
 
 export default {
   name: 'ListView',
@@ -71,20 +69,8 @@ export default {
         if (!byDate.has(t.date)) byDate.set(t.date, [])
         byDate.get(t.date).push(t)
       }
-      return [...byDate.entries()].map(([date, items]) => {
-        let spent = 0, refund = 0, income = 0
-        for (const t of items) {
-          if (t.amount == null) continue
-          if (t.kind === 'expense') spent += t.amount
-          else if (t.category?.is_refund) refund += t.amount
-          else income += t.amount
-        }
-        const parts = []
-        if (spent) parts.push(`지출 ${won(spent)}`)
-        if (refund) parts.push(`환불 ${won(refund)}`)
-        if (income) parts.push(`수입 ${won(income)}`)
-        return { date, label: label(date), items, total: parts.join(' · ') }
-      })
+      // 날짜별 합계는 보여주지 않는다 (달력 칸에 그날 수입·지출이 나온다)
+      return [...byDate.entries()].map(([date, items]) => ({ date, label: label(date), items }))
     }
   },
   created() { this.load() },
