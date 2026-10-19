@@ -5,15 +5,19 @@
     </ScreenHeader>
 
     <div class="body">
+      <div class="seg" role="tablist" aria-label="지출·수입">
+        <button type="button" role="tab" :aria-selected="kind === 'expense'" :class="{ on: kind === 'expense' }" @click="kind = 'expense'">지출 {{ count('expense') }}</button>
+        <button type="button" role="tab" :aria-selected="kind === 'income'" :class="{ on: kind === 'income' }" @click="kind = 'income'">수입 {{ count('income') }}</button>
+      </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <p v-if="loaded && !items.length" class="intro">자주 쓰는 지출을 등록하면 입력할 때 한 번에 채워져요</p>
+      <p v-if="loaded && !shown.length" class="intro">{{ kind === 'income' ? '용돈·중고 판매처럼 자주 받는 돈을 등록하면 입력할 때 한 번에 채워져요' : '자주 쓰는 지출을 등록하면 입력할 때 한 번에 채워져요' }}</p>
 
-      <section v-if="items.length" v-sortable="onSort" class="card" aria-label="등록된 빠른 입력">
-        <ManageRow v-for="q in items" :key="q.id" :name="q.name">
+      <section v-if="shown.length" v-sortable="onSort" class="card" :aria-label="kind === 'income' ? '수입 빠른 입력' : '지출 빠른 입력'">
+        <ManageRow v-for="q in shown" :key="q.id" :name="q.name">
           <template #lead>
             <CatTile :name="catOf(q)?.name || '기타'" :color="catOf(q)?.color" />
           </template>
-          <span>{{ q.name }} <strong class="amt">{{ won(q.amount) }}원</strong></span>
+          <span>{{ q.name }} <strong class="amt" :class="{ 'amount-income': kind === 'income' }">{{ kind === 'income' ? '+' : '' }}{{ won(q.amount) }}원</strong></span>
           <span class="muted small">{{ catOf(q)?.name || '미분류' }} · {{ pmOf(q)?.name || '미지정' }}</span>
           <span v-if="q.memo" class="memo">{{ q.memo }}</span>
           <template #trail>
@@ -23,12 +27,12 @@
       </section>
     </div>
 
-    <BottomSheet :open="sheet.open" :title="sheet.id ? '빠른 입력 수정' : '새 빠른 입력'" @close="sheet.open = false">
+    <BottomSheet :open="sheet.open" :title="(sheet.id ? '빠른 입력 수정' : '새 빠른 입력') + (kind === 'income' ? ' (수입)' : ' (지출)')" @close="sheet.open = false">
       <form class="sheet-form" @submit.prevent="saveSheet">
         <div class="two">
           <div class="col">
-            <label for="q-name" class="lbl">이름 (사용처)</label>
-            <input id="q-name" v-model="sheet.name" class="box" type="text" maxlength="30" placeholder="예: 회사 앞 커피" required>
+            <label for="q-name" class="lbl">이름 ({{ kind === 'income' ? '입금처' : '사용처' }})</label>
+            <input id="q-name" v-model="sheet.name" class="box" type="text" maxlength="30" :placeholder="kind === 'income' ? '예: 엄마 용돈' : '예: 회사 앞 커피'" required>
           </div>
           <div class="col">
             <label for="q-amount" class="lbl">금액</label>
@@ -37,8 +41,8 @@
         </div>
         <span v-if="sheet.amountText && sheetAmount === null" class="error">금액을 확인해 주세요</span>
         <span class="lbl">분류</span>
-        <CategoryGrid v-model="sheet.category_id" :categories="expenseCats" />
-        <span class="lbl">결제수단</span>
+        <CategoryGrid v-model="sheet.category_id" :categories="kindCats" />
+        <span class="lbl">{{ kind === 'income' ? '받는 통장' : '결제수단' }}</span>
         <div class="chips">
           <button
             v-for="m in methods" :key="m.id" type="button" class="chip" :class="{ on: sheet.payment_method_id === m.id }"
@@ -71,13 +75,16 @@ export default {
   components: { ScreenHeader, ManageRow, BottomSheet, CategoryGrid, CatTile },
   data() {
     return {
-      items: [], categories: [], methods: [], loaded: false, busy: false, error: '',
+      items: [], categories: [], methods: [], loaded: false, busy: false, error: '', kind: 'expense',
       sheet: { open: false, id: null, name: '', amountText: '', category_id: null, payment_method_id: null, memo: '' },
       sheetError: ''
     }
   },
   computed: {
-    expenseCats() { return this.categories.filter((c) => c.kind === 'expense' && c.is_active) },
+    /** 지금 탭(지출/수입)의 분류. 환불은 원래 구매와 이어야 해서 뺌 */
+    kindCats() { return this.categories.filter((c) => c.kind === this.kind && c.is_active && !c.is_refund) },
+    /** 지금 탭의 내역 (SQL 0007 전 내역은 kind 가 없음 → 지출) */
+    shown() { return this.items.filter((q) => (q.kind || 'expense') === this.kind) },
     sheetAmount() { return calcAmount(this.sheet.amountText) },
     canSave() { return this.sheet.name.trim() && this.sheetAmount > 0 }
   },
@@ -91,6 +98,7 @@ export default {
       } catch (e) { this.fail(e, '불러오지 못했어요.') } finally { this.loaded = true }
     },
     fail(e, msg) { this.error = msg; console.error(e) },
+    count(k) { return this.items.filter((q) => (q.kind || 'expense') === k).length },
     catOf(q) { return this.categories.find((c) => c.id === q.category_id) },
     pmOf(q) { return this.methods.find((m) => m.id === q.payment_method_id) },
     openNew() { this.sheet = { open: true, id: null, name: '', amountText: '', category_id: null, payment_method_id: null, memo: '' }; this.sheetError = '' },
@@ -101,6 +109,7 @@ export default {
     async saveSheet() {
       this.busy = true; this.error = ''; this.sheetError = ''
       const row = { name: this.sheet.name.trim(), amount: this.sheetAmount, category_id: this.sheet.category_id, payment_method_id: this.sheet.payment_method_id }
+      if (!this.sheet.id) row.kind = this.kind
       const memo = this.sheet.memo.trim()
       // 메모 칸이 있는 DB면 비운 것도 저장, 없으면(0007 전) 메모를 적었을 때만 보냄
       if (memo || this.sheet.hasMemoCol) row.memo = memo || null
@@ -113,7 +122,11 @@ export default {
         }
         this.sheet.open = false
       } catch (e) {
-        if (isMissingQuickMemo(e)) this.sheetError = '메모를 저장하려면 Supabase에서 0007_quick_memo.sql 을 한 번 실행해 주세요. (메모를 비우면 저장돼요)'
+        if (isMissingQuickMemo(e)) {
+          this.sheetError = this.kind === 'income'
+            ? '수입 빠른 입력을 쓰려면 Supabase에서 0007_quick_memo.sql 을 한 번 실행해 주세요.'
+            : '메모를 저장하려면 Supabase에서 0007_quick_memo.sql 을 한 번 실행해 주세요. (메모를 비우면 저장돼요)'
+        }
         else this.fail(e, '저장하지 못했어요. 다시 해 주세요.')
       } finally { this.busy = false }
     },
@@ -125,10 +138,11 @@ export default {
         this.sheet.open = false
       } catch (e) { this.fail(e, '삭제하지 못했어요.') } finally { this.busy = false }
     },
+    /** 지금 탭 안에서만 순서 바꾸기 */
     async onSort(from, to) {
       this.error = ''
-      const next = reorder(this.items, from, to)
-      this.items = next
+      const next = reorder(this.shown, from, to)
+      this.items = [...this.items].sort((a, b) => a.sort_order - b.sort_order)
       try { await saveMoved('quick_entries', next, from, to) } catch (e) { this.fail(e, '순서를 바꾸지 못했어요.'); this.load() }
     }
   }

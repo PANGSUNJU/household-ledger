@@ -38,12 +38,12 @@
         <span v-if="amountText && amount === null" id="amount-help" class="help">{{ tooBig(amountText) ? '금액이 너무 커요 (10억 원까지)' : '계산할 수 없는 식이에요' }}</span>
       </div>
 
-      <!-- 빠른 입력 (지출, 새 기록일 때) -->
-      <div v-if="kind === 'expense' && !isEdit && quickEntries.length" class="field">
+      <!-- 빠른 입력 (새 기록일 때, 지출·수입 탭마다 그 종류만) -->
+      <div v-if="!isEdit && quickShown.length" class="field">
         <span class="lbl">빠른 입력</span>
         <div class="quick">
           <button
-            v-for="(q, i) in quickEntries" :key="q.id" type="button" class="q"
+            v-for="(q, i) in quickShown" :key="q.id" type="button" class="q"
             :style="{ background: QUICK_BG[i % QUICK_BG.length] }" @click="applyQuick(q)"
           >{{ q.name }} {{ won(q.amount) }}</button>
         </div>
@@ -117,7 +117,7 @@
 
       <div class="bottom">
         <p v-if="saveError" class="error" role="alert">{{ saveError }}</p>
-        <!-- 저장하면서 자주 쓰는 내역에도 (지출 새 기록일 때, 매번 꺼진 채로 시작) -->
+        <!-- 저장하면서 자주 쓰는 내역에도 (지출·수입 새 기록, 환불 제외. 매번 꺼진 채로 시작) -->
         <label v-if="canAddQuick" class="also-quick">
           <input v-model="alsoQuick" type="checkbox">
           <span>자주 쓰는 내역에도 추가</span>
@@ -170,7 +170,9 @@ export default {
     }
   },
   computed: {
-    canAddQuick() { return this.kind === 'expense' && !this.isEdit && !this.fromRecurring },
+    canAddQuick() { return !this.isEdit && !this.fromRecurring && !this.isRefund },
+    /** 지금 탭(지출/수입)의 자주 쓰는 내역 (SQL 0007 전 내역은 지출) */
+    quickShown() { return this.quickEntries.filter((q) => (q.kind || 'expense') === this.kind) },
     isEdit() { return !!this.id },
     expenseCategories() { return this.categories.filter((c) => c.kind === 'expense') },
     incomeCategories() { return this.categories.filter((c) => c.kind === 'income') },
@@ -292,20 +294,20 @@ export default {
     /** 저장한 사용처·금액·분류·결제수단을 자주 쓰는 내역에도 (이름은 사용처, 없으면 분류 이름). 실패해도 기록 저장은 된 것 */
     async addToQuick() {
       const cat = this.categories.find((c) => c.id === this.categoryId)
-      const name = (this.store.trim() || cat?.name || '지출').slice(0, 30)
+      const name = (this.store.trim() || cat?.name || (this.kind === 'income' ? '수입' : '지출')).slice(0, 30)
       const memo = this.memo.trim()
-      if (this.quickEntries.some((q) => q.name === name && q.amount === this.amount && (q.memo || '') === memo)) return
+      if (this.quickShown.some((q) => q.name === name && q.amount === this.amount && (q.memo || '') === memo)) return
       try {
-        await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId, memo })
+        await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId, memo, kind: this.kind })
       } catch (e) {
         // 메모 칸이 아직 없으면(SQL 0007 전) 메모 없이라도 등록
-        if (memo && isMissingQuickMemo(e)) {
+        if (memo && this.kind === 'expense' && isMissingQuickMemo(e)) {
           try { await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId }) } catch (e2) { console.warn('자주 쓰는 내역 추가 실패', e2) }
         } else console.warn('자주 쓰는 내역 추가 실패', e)
       }
     },
     applyQuick(q) {
-      this.kind = 'expense'
+      this.kind = q.kind || 'expense'
       this.amountText = String(q.amount)
       this.store = q.name
       // 숨긴 분류(예: 예전 '고정지출')는 고르지 않는다
