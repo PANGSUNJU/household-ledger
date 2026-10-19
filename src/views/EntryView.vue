@@ -38,15 +38,19 @@
         <span v-if="amountText && amount === null" id="amount-help" class="help">{{ tooBig(amountText) ? '금액이 너무 커요 (10억 원까지)' : '계산할 수 없는 식이에요' }}</span>
       </div>
 
-      <!-- 빠른 입력 (지출, 새 기록일 때) -->
-      <div v-if="kind === 'expense' && !isEdit && quickEntries.length" class="field">
-        <span class="lbl">빠른 입력</span>
-        <div class="quick">
+      <!-- 빠른 입력 (지출, 새 기록일 때) + 지금 쓴 내용을 자주 쓰는 내역에 바로 추가 -->
+      <div v-if="kind === 'expense' && !isEdit" class="field">
+        <div class="lbl-row">
+          <span class="lbl">빠른 입력</span>
+          <button type="button" class="q-add" :disabled="quickBusy" @click="addToQuick">+ 지금 내용 추가</button>
+        </div>
+        <div v-if="quickEntries.length" class="quick">
           <button
             v-for="(q, i) in quickEntries" :key="q.id" type="button" class="q"
             :style="{ background: QUICK_BG[i % QUICK_BG.length] }" @click="applyQuick(q)"
           >{{ q.name }} {{ won(q.amount) }}</button>
         </div>
+        <span v-if="quickMsg" class="help" :class="{ 'quick-ok': quickOk }" role="status">{{ quickMsg }}</span>
       </div>
 
       <!-- 날짜 · 사용처(지출) / 입금처(수입) -->
@@ -131,7 +135,7 @@ import CategoryAddSheet from '@/components/CategoryAddSheet.vue'
 import PaymentPicker from '@/components/PaymentPicker.vue'
 import RefundPicker from '@/components/RefundPicker.vue'
 import {
-  listCategories, listPaymentMethods, listQuickEntries, getTransaction,
+  listCategories, listPaymentMethods, listQuickEntries, addQuickEntry, getTransaction,
   lastExpenseAtStore, lastPaymentMethodId, saveTransaction, deleteTransaction
 } from '@/lib/api'
 import { todayKST } from '@/lib/date'
@@ -151,6 +155,7 @@ export default {
       QUICK_BG: ['#FFF1C7', '#FFE6DA', '#DFECFB', '#DCF1E6', '#E9E3FA'],
       loading: true, loadError: '', saving: false, saveError: '', confirmDelete: false,
       categories: [], paymentMethods: [], quickEntries: [], addingCat: false,
+      quickBusy: false, quickMsg: '', quickOk: false,
       // 입력값
       kind: 'expense',
       amountText: '',
@@ -280,6 +285,24 @@ export default {
       this.amountText = /[+\-*/]$/.test(v) ? v.slice(0, -1) + op : v + op
       this.$nextTick(() => { el.focus(); el.setSelectionRange(this.amountText.length, this.amountText.length) })
     },
+    /** 지금 쓴 사용처·금액·분류·결제수단을 자주 쓰는 내역에 추가 (이름은 사용처, 없으면 분류 이름) */
+    async addToQuick() {
+      this.quickMsg = ''; this.quickOk = false
+      const amount = this.amount
+      const cat = this.categories.find((c) => c.id === this.categoryId)
+      const name = (this.store.trim() || cat?.name || '').slice(0, 30)
+      if (!amount || amount <= 0 || !name) { this.quickMsg = '금액과 사용처(또는 분류)를 넣으면 추가할 수 있어요'; return }
+      if (this.quickEntries.some((q) => q.name === name && q.amount === amount)) { this.quickMsg = '이미 자주 쓰는 내역에 있어요'; return }
+      this.quickBusy = true
+      try {
+        const q = await addQuickEntry({ name, amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId })
+        this.quickEntries.push(q)
+        this.quickMsg = `'${name} ${won(amount)}'을 추가했어요`; this.quickOk = true
+      } catch (e) {
+        this.quickMsg = '추가하지 못했어요. 다시 해 주세요.'
+        console.error(e)
+      } finally { this.quickBusy = false }
+    },
     applyQuick(q) {
       this.kind = 'expense'
       this.amountText = String(q.amount)
@@ -388,6 +411,9 @@ export default {
 
 .quick { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .q { height: 36px; padding: 0 12px; border: 0; border-radius: 18px; font-size: 13px; white-space: nowrap; color: var(--text); flex-shrink: 0; }
+.lbl-row { display: flex; justify-content: space-between; align-items: center; }
+.q-add { height: 32px; padding: 0 12px; border: 1px dashed #B8A69C; border-radius: 16px; background: transparent; font-size: 12px; color: var(--text-sub); }
+.quick-ok { color: var(--today-fg); }
 
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .box {
