@@ -5,7 +5,7 @@
       <span class="name">{{ tx.store_name || tx.category?.name || (tx.kind === 'income' ? '수입' : '지출') }}</span>
       <span class="sub">{{ subText }}</span>
     </span>
-    <span class="amt" :class="{ 'amount-income': tx.kind === 'income' }">{{ amountText }}</span>
+    <span class="amt" :class="{ 'amount-income': tx.kind === 'income', 'amount-expense': tx.kind === 'expense' && tx.amount != null }">{{ amountText }}</span>
   </router-link>
 </template>
 
