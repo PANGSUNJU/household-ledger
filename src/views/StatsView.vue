@@ -27,6 +27,7 @@
         <span class="muted small">{{ periodName }} 지출</span>
         <strong class="big">{{ won(now.spent) }}원</strong>
         <span v-if="diffText" class="badge" :class="diff > 0 ? 'up' : 'down'">{{ diffText }}</span>
+        <span v-if="diffText && hasSavings" class="cmp-note">저축/투자는 빼고 비교했어요</span>
         <div class="lines">
           <div><span class="muted">수입</span><strong class="amount-income">{{ won(now.income) }}원</strong></div>
           <div v-if="now.refund > 0"><span class="muted">환불로 빠짐</span><strong class="refund-amt">{{ won(now.refund) }}원</strong></div>
@@ -106,7 +107,9 @@ export default {
     rangeLabel() { return rangeText(this.range.from, this.range.to) },
     periodName() { return { this: '이번 달', last: '지난달', d30: '최근 30일', year: '올해', custom: '이 기간' }[this.period] },
     tabLabel() { return { byCategory: '분류', byStore: '사용처', byMethod: '결제수단' }[this.tab] },
-    diff() { return this.now && this.prev ? this.now.spent - this.prev.spent : 0 },
+    /** 지난 기간과 비교: 저축/투자는 빼고 (저축을 많이 한 달이 '많이 썼다'로 보이지 않게) */
+    diff() { return this.now && this.prev ? this.now.budgetSpent - this.prev.budgetSpent : 0 },
+    hasSavings() { return !!(this.now?.savings || this.prev?.savings) },
     diffText() {
       const label = this.range.cmpLabel
       if (!this.prev || !this.diff) return this.prev && this.now.spent ? `${label}과 같아요` : ''
@@ -205,6 +208,7 @@ export default {
 .lines { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 10px; font-size: 14px; }
 .lines div { display: flex; justify-content: space-between; }
 .savings { color: #2A5E5A; }
+.cmp-note { margin-top: -2px; font-size: 11px; color: var(--text-faint); }
 .refund-amt { color: var(--text-sub); }
 .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface-sunken); border-radius: 12px; padding: 4px; }
 .tabs button { height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--text-sub); font-size: 14px; }

@@ -19,7 +19,7 @@
         <span class="fill" :class="{ over: left < 0 }" :style="{ width: Math.min(100, pct) + '%' }" />
       </div>
       <div class="b-foot">
-        <span class="muted tiny">쓴 돈 {{ won(spent) }}원</span>
+        <span class="muted tiny">쓴 돈 {{ won(spent) }}원 (저축 빼고)</span>
         <span v-if="isThisMonth && left > 0" class="per-day">하루 {{ won(perDay) }}원 · {{ daysLeft }}일 남음</span>
       </div>
     </template>
@@ -144,7 +144,7 @@ export default {
 .b-head { display: flex; justify-content: space-between; align-items: center; }
 .edit { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--surface-sunken); font-size: 12px; color: #5A4E48; }
 .b-main { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; }
-.b-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-height: 18px; white-space: nowrap; }
+.b-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-height: 18px; white-space: nowrap; letter-spacing: -0.3px; }
 .b-main strong { font-size: 18px; }
 .b-main strong.over { color: var(--expense); }
 .per-day { font-size: 13px; font-weight: 600; color: var(--accent); }
