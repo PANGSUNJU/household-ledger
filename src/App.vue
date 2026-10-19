@@ -4,7 +4,13 @@
   <!-- 로그인 상태면 잠금 설정 확인 + 고정 항목 자동 기록이 끝난 뒤에 화면을 그린다
        (잠긴 내용이 잠깐 보이지 않게, 오늘 들어온 월급이 첫 화면에 바로 보이게) -->
   <template v-if="!auth.user || (lock.loaded && rec.ready)">
-    <router-view />
+    <!-- 아래 메뉴 화면은 닫지 않고 기억해 둔다 (다시 열면 보던 그대로, 데이터는 뒤에서 새로 받음).
+         로그아웃하면 include 가 비어 기억해 둔 화면도 모두 버린다 -->
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="auth.user ? KEEP : []">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
     <BottomNav v-if="$route.meta.nav && !lock.locked" />
   </template>
 </template>
@@ -16,12 +22,13 @@ import LockScreen from './components/LockScreen.vue'
 import { auth } from './lib/auth'
 import { lock, initLock, resetLock } from './lib/lock'
 import { recurringState, runRecurring, resetRecurring } from './lib/recurring'
+import { clearCache } from './lib/sync'
 
 export default {
   name: 'App',
   components: { BottomNav, OfflineScreen, LockScreen },
   data() {
-    return { online: navigator.onLine }
+    return { online: navigator.onLine, KEEP: ['CalendarView', 'ListView', 'StatsView', 'SettingsView'] }
   },
   computed: {
     auth() { return auth },
@@ -38,6 +45,7 @@ export default {
         } else if (!user) {
           resetLock()
           resetRecurring()
+          clearCache()
           // 로그아웃되면 로그인 화면으로
           if (before && !this.$route.meta.public) this.$router.replace({ name: 'login' })
         }

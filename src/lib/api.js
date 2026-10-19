@@ -5,6 +5,7 @@
 import { supabase } from './supabase'
 import { format, daysInMonth } from './date'
 import { MAX_AMOUNT } from './money'
+import { bump, cachedList } from './sync'
 
 function check({ data, error }) {
   if (error) throw error
@@ -41,22 +42,26 @@ async function guarded(feature, fn) {
 
 /* ---------- 분류 ---------- */
 
-export async function listCategories({ includeHidden = false } = {}) {
-  let q = supabase.from('categories').select('*').order('kind').order('sort_order')
-  if (!includeHidden) q = q.eq('is_active', true)
-  return check(await q)
+export function listCategories({ includeHidden = false } = {}) {
+  return cachedList('categories:' + includeHidden, async () => {
+    let q = supabase.from('categories').select('*').order('kind').order('sort_order')
+    if (!includeHidden) q = q.eq('is_active', true)
+    return check(await q)
+  })
 }
 
 /* ---------- 결제수단 ---------- */
 
-export async function listPaymentMethods({ includeHidden = false } = {}) {
-  let q = supabase.from('payment_methods').select('*').order('sort_order')
-  if (!includeHidden) q = q.eq('is_active', true)
-  return check(await q)
+export function listPaymentMethods({ includeHidden = false } = {}) {
+  return cachedList('payment_methods:' + includeHidden, async () => {
+    let q = supabase.from('payment_methods').select('*').order('sort_order')
+    if (!includeHidden) q = q.eq('is_active', true)
+    return check(await q)
+  })
 }
 
 /** 결제수단 새로 등록 (입력 화면에서 바로) */
-export async function addPaymentMethod({ type, name }) {
+async function addPaymentMethodRaw({ type, name }) {
   const { data: last } = await supabase
     .from('payment_methods').select('sort_order').order('sort_order', { ascending: false }).limit(1)
   const sort_order = (last?.[0]?.sort_order ?? 0) + 1
@@ -159,7 +164,7 @@ export async function recentExpenses(from, limit = 100) {
  *  · 금액이 들어 있으면 확정. '금액 입력 필요' 고정 지출에 금액을 넣으면 확정으로 바뀐다.
  *  · 어디서 만들어졌는지(source)는 처음 만들 때만 정한다 (고정 항목 기록을 고쳐도 고정 항목 기록으로 남게)
  */
-export async function saveTransaction(tx) {
+async function saveTransactionRaw(tx) {
   const row = {
     kind: tx.kind,
     date: tx.date,
@@ -178,7 +183,7 @@ export async function saveTransaction(tx) {
   return check(await q.select('id').single())
 }
 
-export async function deleteTransaction(id) {
+async function deleteTransactionRaw(id) {
   return check(await supabase.from('transactions').delete().eq('id', id))
 }
 
@@ -205,26 +210,26 @@ export async function searchTransactions(text) {
 
 /* ---------- 관리: 결제수단 ---------- */
 
-export async function updatePaymentMethod(id, patch) {
+async function updatePaymentMethodRaw(id, patch) {
   return check(await supabase.from('payment_methods').update(patch).eq('id', id).select('*').single())
 }
 
 /* ---------- 관리: 분류 ---------- */
 
-export async function addCategory({ kind, name, color }) {
+async function addCategoryRaw({ kind, name, color }) {
   const { data: last } = await supabase.from('categories').select('sort_order')
     .eq('kind', kind).order('sort_order', { ascending: false }).limit(1)
   const sort_order = (last?.[0]?.sort_order ?? 0) + 1
   return check(await supabase.from('categories').insert({ kind, name: name.trim(), color, sort_order }).select('*').single())
 }
 
-export async function updateCategory(id, patch) {
+async function updateCategoryRaw(id, patch) {
   return check(await supabase.from('categories').update(patch).eq('id', id).select('*').single())
 }
 
 /* ---------- 관리: 자주 쓰는 내역 ---------- */
 
-export async function addQuickEntry({ name, amount, category_id, payment_method_id }) {
+async function addQuickEntryRaw({ name, amount, category_id, payment_method_id }) {
   const { data: last } = await supabase.from('quick_entries').select('sort_order').order('sort_order', { ascending: false }).limit(1)
   const sort_order = (last?.[0]?.sort_order ?? 0) + 1
   return check(await supabase.from('quick_entries')
@@ -232,16 +237,16 @@ export async function addQuickEntry({ name, amount, category_id, payment_method_
     .select('*').single())
 }
 
-export async function updateQuickEntry(id, patch) {
+async function updateQuickEntryRaw(id, patch) {
   return check(await supabase.from('quick_entries').update(patch).eq('id', id).select('*').single())
 }
 
-export async function deleteQuickEntry(id) {
+async function deleteQuickEntryRaw(id) {
   return check(await supabase.from('quick_entries').delete().eq('id', id))
 }
 
 /** 순서 바꾸기: 목록 전체의 sort_order 를 다시 매긴다 (table: 'payment_methods' | 'categories' | 'quick_entries') */
-export async function saveOrder(table, ids) {
+async function saveOrderRaw(table, ids) {
   await Promise.all(ids.map((id, i) =>
     supabase.from(table).update({ sort_order: i + 1 }).eq('id', id).then(check)))
 }
@@ -284,23 +289,23 @@ export async function listRecurringItems() {
     check(await supabase.from('recurring_items').select('*').order('kind').order('sort_order').order('created_at')))
 }
 
-export async function addRecurringItem(row) {
+async function addRecurringItemRaw(row) {
   const { data: last } = await supabase.from('recurring_items').select('sort_order')
     .eq('kind', row.kind).order('sort_order', { ascending: false }).limit(1)
   const sort_order = (last?.[0]?.sort_order ?? 0) + 1
   return check(await supabase.from('recurring_items').insert({ ...row, sort_order }).select('*').single())
 }
 
-export async function updateRecurringItem(id, patch) {
+async function updateRecurringItemRaw(id, patch) {
   return check(await supabase.from('recurring_items').update(patch).eq('id', id).select('*').single())
 }
 
-export async function deleteRecurringItem(id) {
+async function deleteRecurringItemRaw(id) {
   return check(await supabase.from('recurring_items').delete().eq('id', id))
 }
 
 /** 날짜가 된 고정 항목 회차를 기록으로 만든다 (앱을 열 때). 새로 만든 수를 돌려준다 */
-export async function generateRecurring() {
+async function generateRecurringRaw() {
   return guarded('recurring', async () => check(await supabase.rpc('generate_recurring')))
 }
 
@@ -338,13 +343,13 @@ export async function getBudget(month01) {
   return { amount: b.amount, month: b.month, inherited: b.month !== month01 }
 }
 
-export async function saveBudget(month01, amount) {
+async function saveBudgetRaw(month01, amount) {
   return check(
     await supabase.from('budgets').upsert({ month: month01, amount }, { onConflict: 'user_id,month' }).select('month, amount').single()
   )
 }
 
-export async function deleteBudget(month01) {
+async function deleteBudgetRaw(month01) {
   return check(await supabase.from('budgets').delete().eq('month', month01))
 }
 
@@ -381,7 +386,7 @@ export async function findSameTransactions(dates) {
 }
 
 /** 여러 건 한 번에 저장 (캡처 확인 화면) */
-export async function saveTransactions(list) {
+async function saveTransactionsRaw(list) {
   const rows = list.map((tx) => ({
     kind: tx.kind, date: tx.date, amount: tx.amount, status: 'confirmed',
     store_name: tx.store_name || null, category_id: tx.category_id || null,
@@ -407,3 +412,23 @@ export async function getRemindSettings() {
 export async function saveRemindSettings(patch) {
   return check(await supabase.from('user_settings').update(patch).not('user_id', 'is', null))
 }
+
+/* ---------- 저장·삭제 후 '바뀜' 알림 (sync.js) ---------- */
+const changes = (fn) => async (...args) => { const r = await fn(...args); bump(); return r }
+export const addPaymentMethod = changes(addPaymentMethodRaw)
+export const saveTransaction = changes(saveTransactionRaw)
+export const deleteTransaction = changes(deleteTransactionRaw)
+export const updatePaymentMethod = changes(updatePaymentMethodRaw)
+export const addCategory = changes(addCategoryRaw)
+export const updateCategory = changes(updateCategoryRaw)
+export const addQuickEntry = changes(addQuickEntryRaw)
+export const updateQuickEntry = changes(updateQuickEntryRaw)
+export const deleteQuickEntry = changes(deleteQuickEntryRaw)
+export const saveOrder = changes(saveOrderRaw)
+export const addRecurringItem = changes(addRecurringItemRaw)
+export const updateRecurringItem = changes(updateRecurringItemRaw)
+export const deleteRecurringItem = changes(deleteRecurringItemRaw)
+export const generateRecurring = changes(generateRecurringRaw)
+export const saveBudget = changes(saveBudgetRaw)
+export const deleteBudget = changes(deleteBudgetRaw)
+export const saveTransactions = changes(saveTransactionsRaw)

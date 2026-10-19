@@ -60,7 +60,7 @@
       <div class="day-head">
         <h2>{{ dayLabel }}{{ selected === today ? ' · 오늘' : '' }}</h2>
       </div>
-      <p v-if="loading" class="muted empty-msg">불러오는 중…</p>
+      <p v-if="loading && !freshAt" class="muted empty-msg">불러오는 중…</p>
       <p v-else-if="error" class="error empty-msg">{{ error }}</p>
       <p v-else-if="!selectedTxs.length && !selectedPlans.length" class="muted empty-msg">기록이 없어요</p>
       <TxRow v-for="t in selectedTxs" :key="t.id" :tx="t" class="tx" :class="{ need: t.status === 'needs_amount' }" />
@@ -94,9 +94,11 @@ import { upcoming } from '@/lib/recurring'
 import { todayKST, parse, format, daysInMonth, weekday, addMonths, label } from '@/lib/date'
 import { won, signed, compact } from '@/lib/money'
 import { summarize, byDay } from '@/lib/stats'
+import { dataState, freshness } from '@/lib/sync'
 
 export default {
   name: 'CalendarView',
+  mixins: [freshness],
   components: { AppIcon, TxRow, BudgetCard, MonthPicker },
   data() {
     const today = todayKST()
@@ -151,14 +153,28 @@ export default {
     dayLabel() { return label(this.selected) }
   },
   created() {
+    this.firstShow = true
     this.load()
     getRemindSettings().then((r) => { this.remind = r })
+  },
+  /** 다른 메뉴에 갔다가 돌아옴: 저장 후 넘어온 날짜(?date=)로 가고, 바뀐 게 있으면 뒤에서 새로 받기 */
+  activated() {
+    if (this.firstShow) { this.firstShow = false; return }
+    let need = this.needsRefresh()
+    const t = todayKST()
+    if (t !== this.today) { this.today = t; need = true }
+    const q = this.$route.query.date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(q || '') && q !== this.selected) {
+      const { y, m } = parse(q)
+      if (y !== this.y || m !== this.m) { this.y = y; this.m = m; this.nextSelected = q; need = true } else this.selected = q
+    }
+    if (need) this.load()
   },
   methods: {
     won, signed, compact,
     async load() {
       const seq = ++this.reqSeq   // 빨리 달을 넘기면 늦게 온 앞 달 응답은 버린다
-      const y = this.y, m = this.m
+      const y = this.y, m = this.m, ver = dataState.version
       this.loading = true; this.error = ''
       // 아래 내용은 새 달 기록·예산이 다 온 뒤 한 번에 바꾼다 (깜빡임 방지)
       const show = (txs, budget) => {
@@ -179,6 +195,7 @@ export default {
         if (seq !== this.reqSeq) return
         show(txs, budget)
         this.items = items; this.needCount = needs.length
+        this.markFresh(ver)
         this.catColors = Object.fromEntries(cats.map((c) => [c.id, c.color]))
       } catch (e) {
         if (seq !== this.reqSeq) return

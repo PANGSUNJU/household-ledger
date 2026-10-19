@@ -19,7 +19,7 @@
       <button type="submit" :disabled="!custom.from || !custom.to">보기</button>
     </form>
 
-    <p v-if="loading" class="muted">불러오는 중…</p>
+    <p v-if="loading && !now" class="muted">불러오는 중…</p>
     <p v-else-if="error" class="error">{{ error }}</p>
 
     <template v-else>
@@ -73,6 +73,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import { listTransactions, listCategories } from '@/lib/api'
 import BudgetCard from '@/components/BudgetCard.vue'
 import { statsRange, rangeText, todayKST, parse, addDays } from '@/lib/date'
+import { dataState, freshness } from '@/lib/sync'
 import { won } from '@/lib/money'
 import { summarize } from '@/lib/stats'
 
@@ -83,6 +84,7 @@ import { summarize } from '@/lib/stats'
  */
 export default {
   name: 'StatsView',
+  mixins: [freshness],
   components: { AppIcon, BudgetCard },
   data() {
     return {
@@ -129,7 +131,18 @@ export default {
     },
     shownRows() { return this.showAll ? this.rows : this.rows.slice(0, 6) }
   },
-  created() { this.load() },
+  created() { this.firstShow = true; this.load() },
+  activated() {
+    if (this.firstShow) { this.firstShow = false; return }
+    if (!this.needsRefresh()) return
+    // 날짜가 바뀌었으면 '이번 달·지난달·최근 30일' 기간도 오늘 기준으로 다시
+    const t = todayKST()
+    if (t !== this.today) {
+      this.today = t; this.thisY = parse(t).y; this.thisM = parse(t).m
+      if (this.period !== 'custom') this.range = statsRange(this.period)
+    }
+    this.load()
+  },
   methods: {
     won,
     choose(v) {
@@ -147,6 +160,7 @@ export default {
     },
     async load() {
       const seq = ++this.reqSeq   // 기간을 빨리 바꾸면 늦게 온 앞 기간 응답은 버린다
+      const ver = dataState.version
       this.loading = true; this.error = ''
       try {
         const last = this.range.cmp
@@ -159,6 +173,7 @@ export default {
         this.now = summarize(cur)
         this.prev = prev.length ? summarize(prev) : null
         this.categories = cats
+        this.markFresh(ver)
       } catch (e) {
         if (seq !== this.reqSeq) return
         this.error = '통계를 불러오지 못했어요.'
