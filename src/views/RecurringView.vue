@@ -43,7 +43,7 @@
       <template v-for="group in groups" :key="group.kind">
         <h2 v-if="group.list.length" class="group-title">{{ group.title }}</h2>
         <section v-if="group.list.length" v-sortable="(from, to) => onSort(group.kind, from, to)" class="card" :aria-label="group.title">
-          <ManageRow v-for="it in group.list" :key="it.id" :name="it.name">
+          <ManageRow v-for="it in group.list" :key="it.id" :name="it.name" class="rec-row">
             <template #lead>
               <span class="tile" :style="{ background: catOf(it)?.color || '#F3EFEA' }">{{ dayBadge(it) }}</span>
             </template>
@@ -343,21 +343,23 @@ export default {
 .tile { width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius); font-size: 11px; font-weight: 700; color: #4A3F3A; display: flex; align-items: center; justify-content: center; }
 .amt { font-weight: 600; margin-left: 4px; }
 .amt.exp { color: var(--expense); }
+/* 고정 항목 목록: 줄이 2~3줄이라 위아래·줄 사이를 넉넉하게 (이 화면만) */
+.rec-row { padding-top: 12px; padding-bottom: 12px; }
+.rec-row :deep(.label) { gap: 3px; }
 .vary { margin-left: 6px; font-size: 12px; font-weight: 600; color: #8E3F33; background: #FFE6DA; border-radius: 6px; padding: 1px 6px; }
 .group-title { margin: 6px 0 -4px 4px; font-size: 13px; font-weight: 600; color: var(--text-sub); }
 .empty { padding: 4px 4px 0 4px; }
 .notice code { font-size: 11px; word-break: break-all; }
 
-.month { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.month { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .month-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
 .link { color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
 .big { font-size: 20px; letter-spacing: -0.4px; }
 .unknown { font-size: 12px; font-weight: 600; color: #8E3F33; }
 .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 2px; }
-.cols > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.cols .big { margin: 2px 0 4px; }
+.cols > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .col-inc { padding-left: 12px; border-left: 1px solid var(--line-soft); }
-.cols .sub { font-size: 11px; line-height: 16px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cols .sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .needs { padding: 14px 16px 4px 16px; border: 1.5px solid #F2C2B0; }
 .needs h2 { margin: 0; font-size: 15px; }
