@@ -16,6 +16,11 @@ function check({ data, error }) {
  * 아직 실행하지 않은 SQL(0002, 0003) 때문에 표·칸·함수가 없을 때 Supabase가 주는 오류인지
  *  PGRST205 표 없음 / PGRST202 함수 없음 / 42P01 표 없음 / 42883 함수 없음 / 42703 칸 없음
  */
+/** 자주 쓰는 내역 메모 칸이 아직 없을 때 (SQL 0007 전) */
+export function isMissingQuickMemo(e) {
+  return /memo/.test(e?.message || '') && /quick_entries/.test(e?.message || '') && /(not find|does not exist|schema cache)/i.test(e?.message || '')
+}
+
 export function isMissingSetup(e) {
   const code = e?.code || ''
   if (['PGRST205', 'PGRST202', '42P01', '42883', '42703'].includes(code)) return true
@@ -234,11 +239,12 @@ async function updateCategoryRaw(id, patch) {
 
 /* ---------- 관리: 자주 쓰는 내역 ---------- */
 
-async function addQuickEntryRaw({ name, amount, category_id, payment_method_id }) {
+/** 메모는 있을 때만 보낸다 (SQL 0007 전이어도 메모 없는 등록은 되게) */
+async function addQuickEntryRaw({ name, amount, category_id, payment_method_id, memo }) {
   const { data: last } = await supabase.from('quick_entries').select('sort_order').order('sort_order', { ascending: false }).limit(1)
   const sort_order = (last?.[0]?.sort_order ?? 0) + 1
   return check(await supabase.from('quick_entries')
-    .insert({ name: name.trim(), amount, category_id: category_id || null, payment_method_id: payment_method_id || null, sort_order })
+    .insert({ name: name.trim(), amount, category_id: category_id || null, payment_method_id: payment_method_id || null, sort_order, ...(memo ? { memo } : {}) })
     .select('*').single())
 }
 

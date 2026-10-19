@@ -137,7 +137,7 @@ import PaymentPicker from '@/components/PaymentPicker.vue'
 import RefundPicker from '@/components/RefundPicker.vue'
 import {
   listCategories, listPaymentMethods, listQuickEntries, addQuickEntry, getTransaction,
-  lastExpenseAtStore, lastPaymentMethodId, saveTransaction, deleteTransaction
+  lastExpenseAtStore, lastPaymentMethodId, saveTransaction, deleteTransaction, isMissingQuickMemo
 } from '@/lib/api'
 import { todayKST } from '@/lib/date'
 import { calcAmount, hasOperator, won, tooBig } from '@/lib/money'
@@ -161,7 +161,7 @@ export default {
       kind: 'expense',
       amountText: '',
       date: /^\d{4}-\d{2}-\d{2}$/.test(qDate || '') ? qDate : todayKST(),
-      store: '', categoryId: null, paymentMethodId: null, memo: '',
+      store: '', categoryId: null, paymentMethodId: null, memo: '', quickMemo: '',
       refundOf: null, pickedOriginal: null, refundCategoryId: null, startManualRefund: false,
       // 사용자가 직접 고른 값은 가게별 기본값으로 덮어쓰지 않는다
       touched: { category: false, payment: false },
@@ -293,10 +293,16 @@ export default {
     async addToQuick() {
       const cat = this.categories.find((c) => c.id === this.categoryId)
       const name = (this.store.trim() || cat?.name || '지출').slice(0, 30)
-      if (this.quickEntries.some((q) => q.name === name && q.amount === this.amount)) return
+      const memo = this.memo.trim()
+      if (this.quickEntries.some((q) => q.name === name && q.amount === this.amount && (q.memo || '') === memo)) return
       try {
-        await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId })
-      } catch (e) { console.warn('자주 쓰는 내역 추가 실패', e) }
+        await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId, memo })
+      } catch (e) {
+        // 메모 칸이 아직 없으면(SQL 0007 전) 메모 없이라도 등록
+        if (memo && isMissingQuickMemo(e)) {
+          try { await addQuickEntry({ name, amount: this.amount, category_id: this.categoryId, payment_method_id: this.paymentMethodId }) } catch (e2) { console.warn('자주 쓰는 내역 추가 실패', e2) }
+        } else console.warn('자주 쓰는 내역 추가 실패', e)
+      }
     },
     applyQuick(q) {
       this.kind = 'expense'
@@ -305,6 +311,10 @@ export default {
       // 숨긴 분류(예: 예전 '고정지출')는 고르지 않는다
       if (q.category_id && this.categories.some((c) => c.id === q.category_id)) { this.categoryId = q.category_id; this.touched.category = true }
       if (q.payment_method_id) { this.paymentMethodId = q.payment_method_id; this.touched.payment = true; this.paymentHint = '' }
+      // 메모: 자주 쓰는 내역의 메모로. 앞서 다른 내역에서 채운 메모면 바꾸고, 직접 적은 메모는 그대로
+      if (q.memo) this.memo = q.memo
+      else if (this.memo && this.memo === this.quickMemo) this.memo = ''
+      this.quickMemo = q.memo || ''
     },
     /** 가게별 기본값: 같은 가게에서 마지막으로 쓴 분류·결제수단을 미리 골라둔다 (SPEC 5-1) */
     async onStoreChange() {

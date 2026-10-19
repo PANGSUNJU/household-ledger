@@ -212,11 +212,19 @@ await as(B, `delete from push_subscriptions where endpoint='${EP}'`)
 ok('본인 알림 주소 지우기', (await as(B, `select count(*)::int c from push_subscriptions`)).rows[0].c === 0)
 await expectError('보낸 날(remind_sent_on)은 앱에서 못 바꿈', A, `update user_settings set remind_sent_on = '2026-10-18'`)
 
+// 0007: 자주 쓰는 내역 메모
+await as(A, `insert into quick_entries (name, amount, memo) values ('커피', 4500, '아이스 아메리카노')`)
+ok('0007: 자주 쓰는 내역에 메모 저장', (await as(A, `select memo from quick_entries where name='커피'`)).rows[0]?.memo === '아이스 아메리카노')
+await expectError('0007: 메모 200자 넘으면 막힘', A, `insert into quick_entries (name, amount, memo) values ('x', 1, repeat('가', 201))`)
+await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1])
+ok('0007: 다시 실행해도 괜찮음', true)
+
 // 0006 이전에 가입해 '고정지출' 분류가 있던 사람: 0006 을 실행하면 숨겨지고, 지난 기록 분류는 그대로
 await db.exec(`reset role; insert into public.categories (user_id, kind, name, color, sort_order) values ('${A}', 'expense', '고정지출', '#E6DDD5', 9)`)
 const oldFixed = (await as(A, `select id from categories where name='고정지출'`)).rows[0].id
 await as(A, `insert into transactions (kind, date, amount, store_name, category_id) values ('expense', '2026-10-01', 55000, '통신비', $1)`, [oldFixed])
-await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1]); await db.exec(migrations[migrations.length - 1])
+const m6 = migrations.find((m) => m.includes('0006:'))
+await db.exec('reset role;'); await db.exec(m6); await db.exec(m6)
 ok("0006: 예전 '고정지출' 분류는 숨김 (두 번 실행해도 괜찮음)", (await as(A, `select is_active from categories where id=$1`, [oldFixed])).rows[0].is_active === false)
 ok('0006: 지난 기록 분류는 그대로', (await as(A, `select count(*)::int c from transactions where category_id=$1`, [oldFixed])).rows[0].c === 1)
 await db.exec(`reset role; insert into auth.users values ('33333333-3333-3333-3333-333333333333')`)
