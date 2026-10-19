@@ -24,13 +24,14 @@
       <div>
         <span class="muted">{{ vm }}월 지출</span>
         <strong class="amount-expense">{{ won(summary.spent) }}원</strong>
+        <!-- 환불 안내: 줄 자리는 늘 비워 둠 (환불 있는 달·없는 달 카드 높이 같게 → 달력이 안 움직임) -->
+        <span class="refund-note">{{ summary.refund > 0 ? `환불 ${won(summary.refund)}원` : '' }}</span>
       </div>
       <div class="divider">
         <span class="muted">{{ vm }}월 수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
-      <!-- 환불 안내는 이 줄 왼쪽에 (카드 높이가 달마다 달라져 달력이 움직이지 않게) -->
-      <p class="net"><span v-if="summary.refund > 0" class="refund-note">지출에서 환불 {{ won(summary.refund) }}원 빠짐</span><span class="net-val">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></span></p>
+      <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
     </section>
 
     <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
@@ -252,8 +253,7 @@ export default {
 .summary span { font-size: 13px; }
 .summary strong { font-size: 20px; }
 .divider { border-left: 1px solid var(--line); padding-left: 16px; }
-.net { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text-sub); display: flex; align-items: baseline; gap: 8px; }
-.net-val { margin-left: auto; white-space: nowrap; }
+.net { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text-sub); text-align: right; }
 .net b { font-size: 14px; font-weight: 700; color: var(--text); }
 .net b.amount-income { color: var(--income); }
 .net b.amount-expense { color: var(--expense); }
@@ -277,7 +277,7 @@ export default {
 .amt { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--expense); }
 .amt.plus { color: var(--income); }
 .amt.back { color: var(--text-faint); }
-.summary .refund-note { min-width: 0; font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.summary .refund-note { min-height: 15px; font-size: 11px; line-height: 15px; color: var(--text-faint); white-space: nowrap; }
 .amt.need { color: #A9533F; font-size: 9px; }
 .amt.plan { color: var(--text-faint); font-weight: 500; }
 .plan-name { max-width: 100%; font-size: 10px; line-height: 13px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
