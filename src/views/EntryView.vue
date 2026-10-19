@@ -70,8 +70,12 @@
           v-model="categoryId" :categories="kind === 'expense' ? expenseCategories : incomeCategories"
           @update:model-value="touched.category = true"
         >
-          <router-link v-if="kind === 'income'" to="/settings/categories" class="cat-add">+ 분류 추가</router-link>
+          <button v-if="!isRefund" type="button" class="cat-add" @click="addingCat = true">+ 분류 추가</button>
         </CategoryGrid>
+        <CategoryAddSheet
+          :open="addingCat" :kind="kind" :existing="kind === 'expense' ? expenseCategories : incomeCategories"
+          @close="addingCat = false" @added="onCatAdded" @picked="onCatPicked"
+        />
       </div>
 
       <!-- 환불: 원래 구매 찾기 -->
@@ -122,6 +126,7 @@
 import AppIcon from '@/components/AppIcon.vue'
 import ScreenHeader from '@/components/ScreenHeader.vue'
 import CategoryGrid from '@/components/CategoryGrid.vue'
+import CategoryAddSheet from '@/components/CategoryAddSheet.vue'
 import PaymentPicker from '@/components/PaymentPicker.vue'
 import RefundPicker from '@/components/RefundPicker.vue'
 import {
@@ -133,7 +138,7 @@ import { calcAmount, hasOperator, won, tooBig } from '@/lib/money'
 
 export default {
   name: 'EntryView',
-  components: { AppIcon, ScreenHeader, CategoryGrid, PaymentPicker, RefundPicker },
+  components: { AppIcon, ScreenHeader, CategoryGrid, CategoryAddSheet, PaymentPicker, RefundPicker },
   props: { id: { type: String, default: null } },
   data() {
     const qDate = this.$route.query.date
@@ -144,7 +149,7 @@ export default {
       ],
       QUICK_BG: ['#FFF1C7', '#FFE6DA', '#DFECFB', '#DCF1E6', '#E9E3FA'],
       loading: true, loadError: '', saving: false, saveError: '', confirmDelete: false,
-      categories: [], paymentMethods: [], quickEntries: [],
+      categories: [], paymentMethods: [], quickEntries: [], addingCat: false,
       // 입력값
       kind: 'expense',
       amountText: '',
@@ -179,6 +184,15 @@ export default {
   },
   created() { this.load() },
   methods: {
+    /** 입력 화면에서 분류를 새로 만들었으면 목록에 넣고 바로 고른다 */
+    onCatAdded(c) {
+      this.categories.push(c)
+      this.onCatPicked(c)
+    },
+    onCatPicked(c) {
+      this.categoryId = c.id; this.touched.category = true
+      this.addingCat = false
+    },
     won, tooBig,
     async load() {
       this.loading = true; this.loadError = ''
@@ -379,6 +393,7 @@ export default {
   padding: 0 12px; font-size: 15px; background: var(--surface);
 }
 .cat-add {
+  background: transparent; font-family: inherit;
   height: 42px; border: 1px dashed #B8A69C; border-radius: var(--radius); color: var(--text-sub);
   font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none;
 }
