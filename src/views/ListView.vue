@@ -7,9 +7,9 @@
         <button type="button" class="ym" aria-label="연월 선택" @click="picker = true">{{ y }}년 {{ m }}월<AppIcon name="down" :size="16" /></button>
         <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="20" /></button>
       </div>
-      <!-- 전체 기간에서 찾는 중: 연월 자리에 표시 + 돌아가기 -->
+      <!-- 최근 1년에서 찾는 중: 연월 자리에 표시 + 돌아가기 -->
       <div v-else class="all-scope">
-        <span>전체 기간</span>
+        <span>최근 1년</span>
         <button type="button" class="back-month" @click="setScope('month')"><AppIcon name="back" :size="16" />{{ m }}월로</button>
       </div>
     </header>
@@ -25,12 +25,18 @@
         v-for="f in FILTERS" :key="f.v" type="button" role="radio"
         :aria-checked="filter === f.v" :class="{ on: filter === f.v }" @click="filter = f.v"
       >{{ f.t }}</button>
-      <span v-if="searching" class="count muted">{{ scope === 'month' ? `${m}월` : '전체' }} {{ visible.length }}건</span>
+      <span v-if="searching" class="count muted">{{ scopeName }} {{ visible.length }}건</span>
     </div>
+
+    <!-- 검색할 때만: 찾은 기록의 합계 (캘린더와 같은 규칙: 환불은 지출에서 빼고 회색으로 따로) -->
+    <p v-if="searching && sumLine.length && !(loading && !freshAt) && !error" class="sum" aria-live="polite">
+      <span v-for="(p, i) in sumLine" :key="i" :class="p.cls">{{ p.text }}</span>
+      <span v-if="txs.length >= SEARCH_LIMIT" class="cap">최근 {{ SEARCH_LIMIT.toLocaleString('ko-KR') }}건까지 더했어요</span>
+    </p>
 
     <p v-if="loading && !freshAt" class="msg muted">불러오는 중…</p>
     <p v-else-if="error" class="msg error">{{ error }}</p>
-    <p v-else-if="!groups.length" class="msg muted">{{ searching ? (scope === 'month' ? `${m}월에는 찾는 기록이 없어요.` : '찾는 기록이 없어요.') : '이 달에는 기록이 없어요.' }}</p>
+    <p v-else-if="!groups.length" class="msg muted">{{ searching ? (scope === 'month' ? `${m}월에는 찾는 기록이 없어요.` : '최근 1년 동안 찾는 기록이 없어요.') : '이 달에는 기록이 없어요.' }}</p>
 
     <section v-for="g in groups" :key="g.date" class="card group">
       <div class="g-head">
@@ -41,7 +47,7 @@
 
     <!-- 검색은 고른 달에서 먼저. 더 넓게 보고 싶을 때만 -->
     <button v-if="searching && scope === 'month' && !error && !(loading && !freshAt)" type="button" class="wider" @click="setScope('all')">
-      다른 달에서도 찾기<AppIcon name="next" :size="16" />
+      최근 1년에서 찾기<AppIcon name="next" :size="16" />
     </button>
     <MonthPicker :open="picker" :y="y" :m="m" @pick="goMonth" @close="picker = false" />
   </main>
@@ -52,8 +58,10 @@ import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
 import { dataState, freshness } from '@/lib/sync'
-import { listMonth, searchTransactions } from '@/lib/api'
-import { todayKST, parse, format, daysInMonth, addMonths, label } from '@/lib/date'
+import { listMonth, searchTransactions, SEARCH_LIMIT } from '@/lib/api'
+import { summarize } from '@/lib/stats'
+import { won } from '@/lib/money'
+import { todayKST, parse, format, daysInMonth, addMonths, addDays, label } from '@/lib/date'
 
 export default {
   name: 'ListView',
@@ -62,12 +70,23 @@ export default {
   data() {
     const { y, m } = parse(todayKST())
     return {
+      SEARCH_LIMIT,
       FILTERS: [{ v: 'all', t: '전체' }, { v: 'expense', t: '지출' }, { v: 'income', t: '수입' }],
       y, m, picker: false, query: '', scope: 'month', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
     }
   },
   computed: {
     searching() { return this.query.trim().length > 0 },
+    scopeName() { return this.scope === 'month' ? `${this.m}월` : '최근 1년' },
+    /** 검색 합계 한 줄: 0원인 쪽은 숨김. [지출]이면 지출만, [수입]이면 수입만 */
+    sumLine() {
+      const s = summarize(this.txs)
+      const out = []
+      if (this.filter !== 'income' && s.spent) out.push({ text: `지출 ${s.spent < 0 ? '-' : ''}${won(Math.abs(s.spent))}원`, cls: 'amount-expense' })
+      if (this.filter !== 'expense' && s.income) out.push({ text: `수입 ${won(s.income)}원`, cls: 'amount-income' })
+      if (this.filter !== 'income' && s.refund) out.push({ text: `환불 ${won(s.refund)}원 빠짐`, cls: 'refund' })
+      return out
+    },
     visible() { return this.filter === 'all' ? this.txs : this.txs.filter((t) => t.kind === this.filter) },
     /** 환불 수수료 표시용: 불러온 기록 중 원래 구매 금액 */
     originals() {
@@ -99,7 +118,7 @@ export default {
       try {
         const range = { from: format(this.y, this.m, 1), to: format(this.y, this.m, daysInMonth(this.y, this.m)) }
         const rows = !this.searching ? await listMonth(this.y, this.m)
-          : await searchTransactions(this.query, this.scope === 'month' ? range : null)
+          : await searchTransactions(this.query, this.scope === 'month' ? range : { from: addDays(todayKST(), -365) })   // 넓히면 최근 1년
         if (seq === this.reqSeq) { this.txs = rows; this.markFresh(ver) }
       } catch (e) {
         if (seq !== this.reqSeq) return
@@ -147,6 +166,8 @@ export default {
 .filters button { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 17px; background: var(--surface); font-size: 13px; }
 .filters button.on { border-color: var(--primary); background: var(--primary); color: var(--on-primary); font-weight: 600; }
 .count { margin-left: auto; font-size: 13px; }
+.sum { margin: -2px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 15px; font-weight: 700; }
+.sum .refund, .sum .cap { font-size: 12px; font-weight: 500; color: var(--text-faint); }
 .all-scope { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
 .back-month { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); font-size: 13px; color: var(--text-sub); }
 .wider {
