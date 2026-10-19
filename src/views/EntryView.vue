@@ -34,7 +34,7 @@
           <button v-for="op in OPS" :key="op.v" type="button" :aria-label="op.label" @click="insertOp(op.v)">{{ op.t }}</button>
           <button type="button" aria-label="금액 지우기" @click="amountText = ''; $refs.amount.focus()">C</button>
         </div>
-        <span id="amount-help" class="help">{{ amountText && amount === null ? (tooBig(amountText) ? '금액이 너무 커요 (10억 원까지)' : '계산할 수 없는 식이에요') : '36000/3 처럼 계산식을 바로 쓸 수 있어요' }}</span>
+        <span v-if="amountText && amount === null" id="amount-help" class="help">{{ tooBig(amountText) ? '금액이 너무 커요 (10억 원까지)' : '계산할 수 없는 식이에요' }}</span>
       </div>
 
       <!-- 빠른 입력 (지출, 새 기록일 때) -->
