@@ -98,6 +98,7 @@ async function handler(req: Request): Promise<Response> {
   }
 
   let sent = 0, failed = 0, removed = 0
+  const reasons: string[] = []   // 실패 이유 (시험 알림 응답·로그에 남겨 원인 찾기)
   for (const userId of targets) {
     const [{ count }, { data: subs }] = await Promise.all([
       admin.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'needs_amount'),
@@ -118,14 +119,18 @@ async function handler(req: Request): Promise<Response> {
         failed++
         // 앱을 지웠거나 알림을 끈 폰: 주소를 정리한다
         const code = (e as { statusCode?: number }).statusCode
+        const body = String((e as { body?: string }).body || (e as Error).message || '').slice(0, 200)
+        let host = ''
+        try { host = new URL(s.endpoint).host } catch { /* 주소 이상 */ }
+        reasons.push(`${code ?? '?'} ${host} ${body}`.trim())
+        console.error('보내기 실패', code, host, body)
         if (code === 404 || code === 410) { removed++; await admin.from('push_subscriptions').delete().eq('id', s.id) }
-        else console.error('보내기 실패', code, (e as Error).message)
       }
     }
     // 이번 주는 보냈다고 표시 (폰이 하나도 없으면 다음 확인 때 또 보지 않게 그래도 표시)
     if (!test) await admin.from('user_settings').update({ remind_sent_on: now.date }).eq('user_id', userId)
     if (test && !(subs || []).length) return json({ error: '이 계정에 알림 받을 폰이 없어요', sent: 0 }, 400)
-    if (test && !okForUser) return json({ error: '보내지 못했어요', failed, removed }, 502)
+    if (test && !okForUser) return json({ error: `보내지 못했어요 (${reasons[0] || '이유 모름'})`, failed, removed, reasons }, 502)
   }
   return json({ now, targets: targets.length, sent, failed, removed })
 }
