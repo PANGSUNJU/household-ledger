@@ -2,7 +2,7 @@
   <main class="page calendar">
     <header class="month-head">
       <button type="button" class="icon-btn" aria-label="이전 달" @click="move(-1)"><AppIcon name="back" :size="22" /></button>
-      <h1>{{ y }}년 {{ m }}월</h1>
+      <h1><button type="button" class="ym" aria-label="연월 선택" @click="picker = true">{{ y }}년 {{ m }}월<AppIcon name="down" :size="18" /></button></h1>
       <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="22" /></button>
     </header>
 
@@ -78,6 +78,8 @@
       </router-link>
     </section>
 
+    <MonthPicker :open="picker" :y="y" :m="m" @pick="goMonth" @close="picker = false" />
+
     <router-link :to="{ name: 'entry', query: { date: selected } }" class="fab" aria-label="기록 추가">
       <AppIcon name="plus" :size="28" :stroke="2.2" />
     </router-link>
@@ -88,6 +90,7 @@
 import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
 import BudgetCard from '@/components/BudgetCard.vue'
+import MonthPicker from '@/components/MonthPicker.vue'
 import { listMonth, listRecurringItems, listNeedsAmount, listCategories, getRemindSettings, saveRemindSettings } from '@/lib/api'
 import { shouldRemind } from '@/lib/remind'
 import { upcoming } from '@/lib/recurring'
@@ -97,7 +100,7 @@ import { summarize, byDay } from '@/lib/stats'
 
 export default {
   name: 'CalendarView',
-  components: { AppIcon, TxRow, BudgetCard },
+  components: { AppIcon, TxRow, BudgetCard, MonthPicker },
   data() {
     const today = todayKST()
     // 저장 후 돌아오면 그 날짜를 보여준다 (?date=YYYY-MM-DD)
@@ -106,7 +109,7 @@ export default {
     const { y, m } = parse(selected)
     return {
       WEEK: ['일', '월', '화', '수', '목', '금', '토'],
-      today, y, m, selected,
+      today, y, m, selected, picker: false,
       txs: [], loading: false, error: '',
       items: [], needCount: 0, catColors: {}, remind: null, reqSeq: 0
     }
@@ -174,9 +177,15 @@ export default {
     },
     move(diff) {
       const next = addMonths(this.y, this.m, diff)
-      this.y = next.y; this.m = next.m
-      const sameMonthAsToday = format(next.y, next.m, 1).slice(0, 7) === this.today.slice(0, 7)
-      this.selected = sameMonthAsToday ? this.today : format(next.y, next.m, 1)
+      this.goMonth(next)
+    },
+    /** 고른 연월로 이동 (화살표·연월 선택 둘 다) */
+    goMonth({ y, m }) {
+      this.picker = false
+      if (y === this.y && m === this.m) return
+      this.y = y; this.m = m
+      const sameMonthAsToday = format(y, m, 1).slice(0, 7) === this.today.slice(0, 7)
+      this.selected = sameMonthAsToday ? this.today : format(y, m, 1)
       this.load()
     },
     async remindDone() {
@@ -192,6 +201,8 @@ export default {
 <style scoped>
 .month-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 4px 0; }
 .month-head h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+.ym { display: flex; align-items: center; gap: 4px; min-height: var(--tap); padding: 0 10px; border: 0; border-radius: 12px; background: transparent; font: inherit; color: inherit; }
+.ym:active { background: var(--surface-sunken); }
 .icon-btn {
   width: var(--tap); height: var(--tap); border: 0; background: transparent; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
