@@ -9,7 +9,7 @@
   <section v-else-if="state.ready" class="card budget" :aria-label="`${m}월 예산`">
     <template v-if="budget">
       <div class="b-head">
-        <span class="muted small">{{ m }}월 예산 {{ won(budget.amount) }}원<span v-if="budget.inherited" class="tiny"> (지난 예산 그대로)</span></span>
+        <span class="muted small">{{ monthLabel }}예산 {{ won(budget.amount) }}원<span v-if="budget.inherited" class="tiny"> (지난 예산 그대로)</span></span>
         <button type="button" class="edit" @click="openSheet">바꾸기</button>
       </div>
       <div class="b-main">
@@ -27,7 +27,7 @@
     <!-- 예산이 없어도 있을 때와 같은 모양·높이 -->
     <template v-else>
       <div class="b-head">
-        <span class="muted small">{{ m }}월 예산</span>
+        <span class="muted small">{{ monthLabel }}예산</span>
         <button type="button" class="edit set" @click="openSheet">예산 정하기</button>
       </div>
       <div class="b-main"><strong>{{ won(spent) }}원 썼어요</strong></div>
@@ -71,6 +71,8 @@ export default {
     y: { type: Number, required: true },
     m: { type: Number, required: true },
     spent: { type: Number, required: true },
+    /** 카드 제목에 '○월'을 붙일지 (캘린더는 위에 연월이 있어서 뺌) */
+    showMonth: { type: Boolean, default: true },
     preset: { type: Object, default: undefined }   // { loaded, ready, budget }
   },
   emits: ['changed'],
@@ -82,6 +84,7 @@ export default {
     state() { return this.preset || this.own },
     budget() { return this.state.budget },
     month01() { return format(this.y, this.m, 1) },
+    monthLabel() { return this.showMonth ? `${this.m}월 ` : '' },
     isThisMonth() { return todayKST().slice(0, 7) === this.month01.slice(0, 7) },
     left() { return (this.budget?.amount || 0) - this.spent },
     pct() { return this.budget ? (this.spent / this.budget.amount) * 100 : 0 },
