@@ -190,7 +190,9 @@ async function deleteTransactionRaw(id) {
 /* ---------- 검색 (내역 화면) ---------- */
 
 /** 가게·메모로 검색, 숫자만 넣으면 금액도 같이 찾기 (최근 200건) */
-/** 검색: 사용처·메모·금액. range 가 있으면 그 기간 안에서만 ({ from, to } 'YYYY-MM-DD') */
+/** 검색: 사용처·메모·금액. range 가 있으면 그 기간 안에서만 ({ from, to? } 'YYYY-MM-DD')
+ *  · 최대 SEARCH_LIMIT 건 (넘으면 화면에서 안내) */
+export const SEARCH_LIMIT = 1000
 export async function searchTransactions(text, range = null) {
   const q = text.trim()
   const digits = q.replace(/[,\s원]/g, '')
@@ -202,11 +204,12 @@ export async function searchTransactions(text, range = null) {
   if (/^\d{1,10}$/.test(digits) && Number(digits) <= MAX_AMOUNT) conds.push(`amount.eq.${digits}`)
   if (!conds.length) return []
   let q2 = supabase.from('transactions').select(TX_FIELDS).or(conds.join(','))
-  if (range) q2 = q2.gte('date', range.from).lte('date', range.to)
+  if (range?.from) q2 = q2.gte('date', range.from)
+  if (range?.to) q2 = q2.lte('date', range.to)
   return check(
     await q2
       .order('date', { ascending: false }).order('created_at', { ascending: false })
-      .limit(200)
+      .limit(SEARCH_LIMIT)
   )
 }
 
