@@ -54,10 +54,11 @@
           <span v-if="c.exp > 0" class="amt">-{{ compact(c.exp) }}</span>
           <span v-if="c.back > 0" class="amt back">{{ compact(c.back) }}</span>
           <span v-if="c.rec && c.rec.needs && !c.inc && !c.exp" class="amt need">입력 필요</span>
-          <!-- 아직 안 된 고정 항목: 이름(여러 개면 '외') + 예정 -->
+          <!-- 아직 안 된 고정 항목 (빗금 칸): 이름 두 줄까지. 3개 이상이면 둘째 줄은 '외 ○건' -->
           <template v-if="!c.rec && c.plans.length">
-            <span class="plan-name">{{ c.plans[0].item.name }}{{ c.plans.length > 1 ? ' 외' : '' }}</span>
-            <span class="amt plan">예정</span>
+            <span class="plan-name">{{ c.plans[0].item.name }}</span>
+            <span v-if="c.plans.length === 2" class="plan-name">{{ c.plans[1].item.name }}</span>
+            <span v-else-if="c.plans.length > 2" class="plan-name">외 {{ c.plans.length - 1 }}건</span>
           </template>
         </button>
       </div>
