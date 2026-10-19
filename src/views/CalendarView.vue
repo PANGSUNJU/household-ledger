@@ -29,7 +29,7 @@
         <span class="muted">{{ vm }}월 수입</span>
         <strong class="amount-income">{{ won(summary.income) }}원</strong>
       </div>
-      <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net > 0 ? '+' : net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
+      <p class="net">수입 − 지출 = <b :class="net > 0 ? 'amount-income' : net < 0 ? 'amount-expense' : ''">{{ net < 0 ? '-' : '' }}{{ won(Math.abs(net)) }}원</b></p>
     </section>
 
     <BudgetCard :y="vy" :m="vm" :spent="summary.budgetSpent" :preset="budget" class="budget-card" @changed="(b) => budget = { loaded: true, ready: true, budget: b }" />
