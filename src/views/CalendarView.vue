@@ -283,6 +283,8 @@ export default {
 .tx-sub { font-size: 12px; color: var(--text-sub); }
 .tx-amt { font-size: 15px; font-weight: 600; }
 
+/* 맨 아래 기록이 + 버튼(60px)에 가리지 않게: 메뉴 바 + 버튼 자리만큼 아래 여백 */
+.calendar { padding-bottom: calc(var(--nav-h) + 20px + 60px + 16px + env(safe-area-inset-bottom)); }
 .fab {
   position: fixed; bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom));
   right: max(20px, calc(50% - 240px + 20px));
