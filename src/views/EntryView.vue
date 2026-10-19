@@ -302,7 +302,8 @@ export default {
       this.kind = 'expense'
       this.amountText = String(q.amount)
       this.store = q.name
-      if (q.category_id) { this.categoryId = q.category_id; this.touched.category = true }
+      // 숨긴 분류(예: 예전 '고정지출')는 고르지 않는다
+      if (q.category_id && this.categories.some((c) => c.id === q.category_id)) { this.categoryId = q.category_id; this.touched.category = true }
       if (q.payment_method_id) { this.paymentMethodId = q.payment_method_id; this.touched.payment = true; this.paymentHint = '' }
     },
     /** 가게별 기본값: 같은 가게에서 마지막으로 쓴 분류·결제수단을 미리 골라둔다 (SPEC 5-1) */
