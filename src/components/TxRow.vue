@@ -3,7 +3,9 @@
     <CatTile :name="tx.category?.name || '미분류'" :color="tileColor" />
     <span class="main">
       <span class="name">{{ tx.store_name || tx.category?.name || (tx.kind === 'income' ? '수입' : '지출') }}</span>
-      <span class="sub"><span class="sr-only">{{ tx.category?.name || '미분류' }}, </span>{{ subText }}</span>
+      <!-- 분류·결제수단은 화면 읽기 프로그램용으로만 (분류는 왼쪽 네모, 결제수단은 기록을 눌러 확인) -->
+      <span class="sr-only">{{ tx.category?.name || '미분류' }}, {{ tx.payment_method?.name || '결제수단 미지정' }}</span>
+      <span v-if="subText" class="sub">{{ subText }}</span>
     </span>
     <span class="amt" :class="{ 'amount-income': tx.kind === 'income', 'amount-expense': tx.kind === 'expense' && tx.amount != null }">{{ amountText }}</span>
   </router-link>
@@ -25,13 +27,12 @@ export default {
   computed: {
     isRefund() { return this.tx.kind === 'income' && this.tx.category?.is_refund },
     tileColor() { return this.tx.category?.color || '#F3EFEA' },
-    /** 회색 줄: 결제수단 · 메모 (분류는 왼쪽 네모에 이미 보여서 뺀다) */
+    /** 회색 글씨: 메모 (최대 2줄). 환불이면 수수료를 앞에 */
     subText() {
       const parts = []
       if (this.isRefund && this.originalAmount != null && this.originalAmount > this.tx.amount) {
         parts.push(`수수료 ${(this.originalAmount - this.tx.amount).toLocaleString('ko-KR')}원`)
       }
-      parts.push(this.tx.payment_method?.name || '결제수단 미지정')
       if (this.tx.memo) parts.push(this.tx.memo)
       return parts.join(' · ')
     },
@@ -46,6 +47,9 @@ export default {
 .tx { display: flex; align-items: center; gap: 12px; padding: 9px 0; color: var(--text); text-decoration: none; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .name { font-size: 15px; font-weight: 500; }
-.sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub {
+  font-size: 12px; line-height: 16px; color: var(--text-sub); white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
 .amt { font-size: 15px; font-weight: 600; white-space: nowrap; }
 </style>
