@@ -11,6 +11,7 @@
     <template v-else-if="name === 'close'"><path d="M18 6L6 18M6 6l12 12" /></template>
     <template v-else-if="name === 'back'"><path d="M15 18l-6-6 6-6" /></template>
     <template v-else-if="name === 'next'"><path d="M9 18l6-6-6-6" /></template>
+    <template v-else-if="name === 'down'"><path d="M6 9l6 6 6-6" /></template>
     <template v-else-if="name === 'search'"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></template>
     <template v-else-if="name === 'image'"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></template>
     <template v-else-if="name === 'check'"><path d="M20 6L9 17l-5-5" /></template>

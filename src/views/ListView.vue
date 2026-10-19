@@ -4,7 +4,7 @@
       <h1 class="page-title">내역</h1>
       <div v-if="!searching" class="month">
         <button type="button" class="icon-btn" aria-label="이전 달" @click="move(-1)"><AppIcon name="back" :size="20" /></button>
-        <span>{{ y }}년 {{ m }}월</span>
+        <button type="button" class="ym" aria-label="연월 선택" @click="picker = true">{{ y }}년 {{ m }}월<AppIcon name="down" :size="16" /></button>
         <button type="button" class="icon-btn" aria-label="다음 달" @click="move(1)"><AppIcon name="next" :size="20" /></button>
       </div>
     </header>
@@ -34,24 +34,26 @@
       </div>
       <TxRow v-for="t in g.items" :key="t.id" :tx="t" :original-amount="originals[t.refund_of_id]" class="row" />
     </section>
+    <MonthPicker :open="picker" :y="y" :m="m" @pick="goMonth" @close="picker = false" />
   </main>
 </template>
 
 <script>
 import AppIcon from '@/components/AppIcon.vue'
 import TxRow from '@/components/TxRow.vue'
+import MonthPicker from '@/components/MonthPicker.vue'
 import { listMonth, searchTransactions } from '@/lib/api'
 import { todayKST, parse, addMonths, label } from '@/lib/date'
 import { won } from '@/lib/money'
 
 export default {
   name: 'ListView',
-  components: { AppIcon, TxRow },
+  components: { AppIcon, TxRow, MonthPicker },
   data() {
     const { y, m } = parse(todayKST())
     return {
       FILTERS: [{ v: 'all', t: '전체' }, { v: 'expense', t: '지출' }, { v: 'income', t: '수입' }],
-      y, m, query: '', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
+      y, m, picker: false, query: '', filter: 'all', txs: [], loading: false, error: '', timer: null, reqSeq: 0
     }
   },
   computed: {
@@ -107,8 +109,12 @@ export default {
       this.timer = setTimeout(() => this.load(), 250)
     },
     move(diff) {
-      const n = addMonths(this.y, this.m, diff)
-      this.y = n.y; this.m = n.m
+      this.goMonth(addMonths(this.y, this.m, diff))
+    },
+    goMonth({ y, m }) {
+      this.picker = false
+      if (y === this.y && m === this.m) return
+      this.y = y; this.m = m
       this.load()
     }
   }
@@ -119,6 +125,7 @@ export default {
 .list-page { display: flex; flex-direction: column; gap: 12px; }
 .head { display: flex; align-items: center; justify-content: space-between; }
 .month { display: flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 600; }
+.ym { display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 6px; border: 0; border-radius: 10px; background: transparent; font: inherit; color: inherit; }
 .icon-btn { width: 36px; height: 36px; border: 0; background: transparent; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
 .search {
   display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px;
