@@ -18,29 +18,30 @@
         <section v-if="hasAny" class="card chart" aria-label="달마다 고정 지출">
           <div class="chart-head">
             <div>
-              <span class="muted small">최근 {{ span }}개월 평균</span>
+              <span class="muted small">{{ visibleLabel }} 평균</span>
               <strong class="avg">{{ won(average) }}원<span class="per">/달</span></strong>
             </div>
-            <div class="seg span" role="radiogroup" aria-label="기간">
-              <button v-for="n in [6, 12]" :key="n" type="button" role="radio" :aria-checked="span === n" :class="{ on: span === n }" @click="setSpan(n)">{{ n }}개월</button>
-            </div>
+            <span class="muted tiny hint">{{ canLoadMore || firstVisible > 0 ? '← 밀어서 지난 달 보기' : '' }}</span>
           </div>
 
-          <div class="plot" :style="{ '--n': months.length }">
-            <button
-              v-for="(mo, i) in months" :key="mo.key" type="button" class="col"
-              :class="{ on: i === sel }" :aria-pressed="i === sel"
-              :aria-label="`${mo.label} 고정 지출 ${won(mo.done)}원` + (mo.planned ? `, 예정 ${won(mo.planned)}원` : '') + (mo.needs ? `, 금액 입력 필요 ${mo.needs}건` : '')"
-              @click="sel = i"
-            >
-              <span class="val">{{ i === sel ? compactWon(mo.done + mo.planned) : '' }}</span>
+          <!-- 옆으로 밀면 지난 달이 나오고, 왼쪽 끝에 가까워지면 그 전 달을 불러와 이어 붙인다 -->
+          <div ref="scroller" class="plot-scroll" @scroll.passive="onScroll">
+            <div class="plot">
+              <button
+                v-for="(mo, i) in months" :key="mo.key" type="button" class="col"
+                :class="{ on: mo.key === selKey, wait: mo.key < loadedFrom }" :aria-pressed="mo.key === selKey"
+                :aria-label="`${mo.label} 고정 지출 ${won(mo.done)}원` + (mo.planned ? `, 예정 ${won(mo.planned)}원` : '') + (mo.needs ? `, 금액 입력 필요 ${mo.needs}건` : '')"
+                @click="select(mo.key)"
+              >
+                <span class="val">{{ mo.key === selKey ? compactWon(mo.done + mo.planned) : '' }}</span>
               <span class="stack" :style="{ height: barPct(mo) + '%' }">
                 <span v-if="mo.planned" class="seg-plan" :style="{ flexGrow: mo.planned }" />
                 <span v-if="mo.done" class="seg-done" :style="{ flexGrow: mo.done }" />
               </span>
-              <span v-if="mo.needs" class="dot" aria-hidden="true">!</span>
-              <span class="mlabel">{{ mo.short }}</span>
-            </button>
+                <span v-if="mo.needs" class="dot" aria-hidden="true">!</span>
+                <span class="mlabel">{{ mo.short }}</span>
+              </button>
+            </div>
           </div>
           <div v-if="months.some((x) => x.planned) || months.some((x) => x.needs)" class="legend">
             <span><i class="sw done" />나간 돈</span>
@@ -118,7 +119,12 @@ export default {
     const today = todayKST()
     const { y, m } = parse(today)
     return {
-      today, y, m, span: 6, sel: 5,
+      today, y, m,
+      count: 12,              // 불러와 둔 달 수 (이번 달부터 거꾸로)
+      loadedFrom: '',         // 기록을 받아 온 가장 이른 달 'YYYY-MM-01' (이보다 앞 칸은 받는 중)
+      loadingMore: false,
+      selKey: format(y, m, 1),
+      firstVisible: 0,        // 차트에서 지금 보이는 첫 칸 번호
       txs: [], items: [], categories: [],
       loading: true, error: '', setupMissing: false
     }
@@ -126,15 +132,16 @@ export default {
   computed: {
     catMap() { return Object.fromEntries(this.categories.map((c) => [c.id, c])) },
     itemMap() { return Object.fromEntries(this.items.map((x) => [x.id, x])) },
-    /** 12개월 치를 한 번에 계산해 두고 span 만큼 잘라 쓴다 */
+    /** 불러온 달(count) 만큼 계산. 왼쪽이 오래된 달, 오른쪽 끝이 이번 달 */
     allMonths() {
       const out = []
-      for (let i = 11; i >= 0; i--) {
+      const n = this.count
+      for (let i = n - 1; i >= 0; i--) {
         const { y, m } = addMonths(this.y, this.m, -i)
         out.push({
           key: format(y, m, 1), y, m,
           label: `${y !== this.y ? y + '년 ' : ''}${m}월`,
-          short: m === 1 || i === 11 ? `${String(y).slice(2)}.${m}` : `${m}월`,
+          short: m === 1 || i === n - 1 ? `${String(y).slice(2)}.${m}` : `${m}월`,
           done: 0, planned: 0, needs: 0, savings: 0, income: 0, byKey: new Map()
         })
       }
@@ -166,7 +173,7 @@ export default {
       }
 
       // 이번 달: 아직 날짜가 안 된 회차 (예정)
-      const thisMo = out[11]
+      const thisMo = out[out.length - 1]
       const end = addDays(format(this.y, this.m, daysInMonth(this.y, this.m)), 3)
       for (const o of upcoming(this.items, this.today, end, this.today)) {
         if (o.month !== thisMo.key || o.item.kind !== 'expense') continue
@@ -191,20 +198,40 @@ export default {
       })
       return out
     },
-    months() { return this.allMonths.slice(12 - this.span) },
+    months() { return this.allMonths },
     hasAny() { return this.txs.length > 0 || this.items.some((x) => x.is_active && x.kind === 'expense') },
-    cur() { return this.months[this.sel] },
-    /** 화살표: 6개월 보기에서 더 이전으로 가면 12개월 보기로 넓힌다 (최대 12개월 전까지) */
-    canPrev() { return this.sel > 0 || this.span < 12 },
-    canNext() { return this.sel < this.months.length - 1 },
-    prevOfCur() {
-      const i = this.allMonths.indexOf(this.cur)
-      return i > 0 ? this.allMonths[i - 1] : null
+    selIndex() { return this.months.findIndex((x) => x.key === this.selKey) },
+    cur() { return this.months[this.selIndex] },
+    /** 가장 이른 고정 항목 시작 달: 이보다 앞은 기록이 없으니 더 불러오지 않는다 */
+    minKey() {
+      const starts = this.items.map((x) => (x.start_date || '').slice(0, 7) + '-01').filter((k) => k.length === 10)
+      const txMin = this.txs.reduce((a, t) => (!a || t.recurring_month < a ? t.recurring_month : a), '')
+      const all = [...starts, txMin].filter(Boolean).sort()
+      return all[0] || format(this.y, this.m, 1)
     },
+    canLoadMore() { return !!this.months[0] && this.months[0].key > this.minKey },
+    canPrev() { return this.selIndex > 0 || this.canLoadMore },
+    canNext() { return this.selIndex < this.months.length - 1 },
+    prevOfCur() {
+      const i = this.selIndex
+      return i > 0 ? this.months[i - 1] : null
+    },
+    /** 막대 높이 기준: 불러온 모든 달 중 가장 큰 값 (밀 때마다 높이가 바뀌지 않게) */
     maxTotal() { return Math.max(1, ...this.months.map((x) => x.done + x.planned)) },
-    /** 평균: 기록이 있는 달만 (이번 달은 예정 포함 합계로) */
+    /** 지금 화면에 보이는 6칸 */
+    visible() { return this.months.slice(this.firstVisible, this.firstVisible + 6) },
+    visibleLabel() {
+      const v = this.visible
+      if (!v.length) return ''
+      const a = v[0], b = v[v.length - 1]
+      if (v.length === 1) return a.label
+      // 해가 걸치면 양쪽에 해를 붙인다 (2025년 11월~2026년 4월), 같은 해면 앞에만(올해면 생략)
+      if (a.y !== b.y) return `${a.y}년 ${a.m}월~${b.y}년 ${b.m}월`
+      return `${a.label}~${b.m}월`
+    },
+    /** 평균: 보이는 6칸 중 기록이 있는 달만 (이번 달은 예정 포함 합계로) */
     average() {
-      const used = this.months.filter((x) => x.done + x.planned > 0)
+      const used = this.visible.filter((x) => x.done + x.planned > 0)
       if (!used.length) return 0
       return Math.round(used.reduce((s, x) => s + x.done + x.planned, 0) / used.length)
     },
@@ -233,34 +260,90 @@ export default {
       const v = mo.done + mo.planned
       return v ? Math.max(3, (v / this.maxTotal) * 100) : 0
     },
-    setSpan(n) { this.span = n; this.sel = n - 1 },
-    step(dir) {
-      if (dir < 0 && this.sel === 0 && this.span < 12) {
-        // 지금 고른 달을 그대로 두고 12개월로 넓힌 뒤 한 달 앞으로
-        const offset = 12 - this.span
-        this.span = 12
-        this.sel = offset - 1
+    colWidth() {
+      const el = this.$refs.scroller
+      const col = el?.querySelector('.col')
+      return col ? col.getBoundingClientRect().width + 4 : 1   // 막대 칸 + 사이 4px
+    },
+    onScroll() {
+      const el = this.$refs.scroller
+      if (!el) return
+      this.firstVisible = Math.max(0, Math.round(el.scrollLeft / this.colWidth()))
+      // 왼쪽 끝에서 두 칸 안쪽으로 들어오면 그 전 6개월을 불러온다
+      if (el.scrollLeft < this.colWidth() * 2) this.loadMore()
+    },
+    /** 고른 달이 차트에서 보이게 (부드럽게) */
+    reveal(key, smooth = true) {
+      this.$nextTick(() => {
+        const el = this.$refs.scroller
+        const i = this.months.findIndex((x) => x.key === key)
+        if (!el || i < 0) return
+        const w = this.colWidth()
+        const left = el.scrollLeft, right = left + el.clientWidth
+        const x = i * w
+        if (x < left) el.scrollTo({ left: x, behavior: smooth ? 'smooth' : 'auto' })
+        else if (x + w > right) el.scrollTo({ left: x + w - el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
+      })
+    },
+    select(key) { this.selKey = key; this.reveal(key) },
+    async step(dir) {
+      const i = this.selIndex + dir
+      if (i < 0) {
+        if (!this.canLoadMore) return
+        const want = addMonths(+this.selKey.slice(0, 4), +this.selKey.slice(5, 7), -1)
+        await this.loadMore()
+        this.select(format(want.y, want.m, 1))
         return
       }
-      const next = this.sel + dir
-      if (next >= 0 && next < this.months.length) this.sel = next
+      if (i < this.months.length) this.select(this.months[i].key)
+    },
+    /** 그 전 6개월: 칸을 먼저 붙이고(받는 중 흐린 막대) 스크롤 위치는 그대로, 받으면 막대가 자라남 */
+    async loadMore() {
+      if (this.loadingMore || !this.canLoadMore) return
+      this.loadingMore = true
+      const el = this.$refs.scroller
+      const before = el ? el.scrollWidth - el.scrollLeft : 0
+      const oldFirst = this.months[0]
+      const add = 6
+      this.count += add
+      await this.$nextTick()
+      if (el) el.scrollLeft = el.scrollWidth - before   // 붙인 만큼 밀어서 보던 자리 그대로
+      try {
+        const from = addMonths(oldFirst.y, oldFirst.m, -add)
+        const to = addMonths(oldFirst.y, oldFirst.m, -1)
+        const more = await listFixedTransactions(format(from.y, from.m, 1), format(to.y, to.m, 1))
+        this.txs = [...more, ...this.txs]
+        this.loadedFrom = format(from.y, from.m, 1)
+      } catch (e) {
+        this.count -= add
+        console.error(e)
+      } finally {
+        this.loadingMore = false
+      }
     },
     async load() {
       this.loading = true; this.error = ''
       try {
-        const first = addMonths(this.y, this.m, -11)
-        const [txs, items, cats] = await Promise.all([
-          listFixedTransactions(format(first.y, first.m, 1), format(this.y, this.m, 1)),
-          listRecurringItems(),
-          listCategories({ includeHidden: true })
-        ])
-        this.txs = txs; this.items = items; this.categories = cats
+        const [items, cats] = await Promise.all([listRecurringItems(), listCategories({ includeHidden: true })])
+        this.items = items; this.categories = cats
+        // 처음 불러올 달 수: 고정 항목을 시작한 달부터 (최소 6칸, 최대 12칸. 그 전은 밀면 더 불러옴)
+        const mk = this.minKey
+        const since = (this.y * 12 + this.m) - (+mk.slice(0, 4) * 12 + +mk.slice(5, 7)) + 1
+        this.count = Math.min(12, Math.max(6, since))
+        const first = addMonths(this.y, this.m, -(this.count - 1))
+        this.txs = await listFixedTransactions(format(first.y, first.m, 1), format(this.y, this.m, 1))
+        this.loadedFrom = format(first.y, first.m, 1)
       } catch (e) {
         if (isMissingSetup(e)) this.setupMissing = true
         else { this.error = '불러오지 못했어요.'; console.error(e) }
       } finally {
         this.loading = false
       }
+      // 처음엔 오른쪽 끝(이번 달)이 보이게
+      this.$nextTick(() => {
+        const el = this.$refs.scroller
+        if (el) { el.scrollLeft = el.scrollWidth; this.onScroll() }
+      })
     }
   }
 }
@@ -277,14 +360,21 @@ export default {
 .chart-head > div:first-child { display: flex; flex-direction: column; }
 .avg { font-size: 22px; letter-spacing: -0.3px; }
 .per { font-size: 13px; font-weight: 500; color: var(--text-sub); margin-left: 2px; }
-.seg.span { width: 140px; }
-.seg.span button { height: 32px; font-size: 13px; }
+.hint { padding-top: 2px; white-space: nowrap; }
 
+/* 옆으로 밀기: 한 화면에 6칸, 칸 단위로 딱 맞춰 멈춤. 세로 스크롤은 페이지가 그대로 */
+.plot-scroll {
+  overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 24px; margin-bottom: -22px;
+}
+.plot-scroll::-webkit-scrollbar { display: none; }
 /* 막대: 바닥에 붙고 위쪽만 4px 둥글게, 막대 사이는 칸 여백 */
 .plot {
-  height: 170px; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px;
+  height: 170px; display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 20px) / 6); gap: 4px;
   align-items: end; border-bottom: 1px solid var(--line); padding-top: 4px;
 }
+.col { scroll-snap-align: start; }
+.col.wait .stack { background: var(--surface-sunken); height: 30% !important; }
 .col {
   height: 100%; border: 0; background: transparent; padding: 0; position: relative;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-radius: 8px;
@@ -294,6 +384,7 @@ export default {
 .stack {
   width: min(28px, 70%); display: flex; flex-direction: column; gap: 2px;
   border-radius: 4px 4px 0 0; overflow: hidden; min-height: 0;
+  transition: height .35s ease;   /* 새로 불러오거나 기준이 바뀌면 부드럽게 자라남 */
 }
 .seg-done { background: #E9A592; flex-basis: 0; min-height: 2px; }
 .seg-plan {
