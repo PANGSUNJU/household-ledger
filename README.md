@@ -60,6 +60,7 @@ npm install
 8. 같은 방법으로 `supabase/migrations/0006_no_fixed_category.sql` 도 **Run** ('고정지출' 분류 없애기, 다시 실행해도 괜찮음)
 9. 같은 방법으로 `supabase/migrations/0007_quick_memo.sql` 도 **Run** (자주 쓰는 내역 메모, 다시 실행해도 괜찮음)
 10. 같은 방법으로 `supabase/migrations/0008_refund_follow_category.sql` 도 **Run** (구매 분류를 바꾸면 환불도 따라감, 다시 실행해도 괜찮음)
+11. 같은 방법으로 `supabase/migrations/0009_delete_account.sql` 도 **Run** (계정을 지우면 기록도 모두 같이 지워짐, 다시 실행해도 괜찮음)
    - 파일은 번호 순서대로 한 번씩만 실행해요. 이미 실행한 파일을 다시 돌리면 "already exists" 오류가 나요.
 
 ### 4. 연결 정보 넣기
@@ -165,6 +166,7 @@ supabase/
   migrations/0006_no_fixed_category.sql  '고정지출' 분류 없애기 (고정 항목은 source 로 구분)
   migrations/0007_quick_memo.sql  자주 쓰는 내역 메모
   migrations/0008_refund_follow_category.sql  환불 분류가 구매 분류를 따라감
+  migrations/0009_delete_account.sql  계정 지우기 (환불 분류도 같이)
   functions/send-reminders/  알림 보내기 (Edge Function)
   cron-send-reminders.sql    10분마다 알림 확인 예약 (값을 바꿔서 한 번 실행)
 public/sw.js           서비스 워커 (알림 받기·인터넷 끊김 안내)
