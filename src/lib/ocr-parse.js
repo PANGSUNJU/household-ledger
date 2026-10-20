@@ -81,6 +81,8 @@ const AMOUNT_BARE = /(^|\s)([+-])?(\d{1,3}(?:[,]\d{3})+)(?=\s*$|\s)/g
 /** 줄 안의 금액들 → [{ sign, value, index, raw }] (원 표시가 있는 것 우선) */
 export function findAmounts(line, { needWon = true } = {}) {
   const out = []
+  // 금액 맨 앞 '7' 이 '/' 로 읽히는 경우 ('-/200원' → '-7200원'). 글자 수는 그대로라 위치(index)도 그대로
+  line = line.replace(/(^|[\s(+-])\/(?=\d{1,3}(?:[,;.]\d{3})*\s?원)/g, '$17')
   for (const m of line.matchAll(AMOUNT_WON)) {
     const v = toNumber(m[2])
     if (v != null && v > 0) out.push({ sign: m[1] || '', value: v, index: m.index, raw: m[0] })
@@ -114,7 +116,7 @@ export function cleanStore(s) {
     .replace(DATE_ANY, ' ')
     .replace(META_WORDS, ' ')
     .replace(/[·|>›»]/g, ' ')
-    .replace(/^[\s\-–:,.=~]+|[\s\-–:,.=~]+$/g, '')
+    .replace(/^[\s\-–:,.=~_/]+|[\s\-–:,.=~_/]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, 50)
