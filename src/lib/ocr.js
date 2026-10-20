@@ -169,12 +169,17 @@ async function readPiece(worker, canvas, opts = {}, onProgress = null) {
         onProgress?.({ stage: 'name-load' })
         await N.initName()
         onProgress?.({ stage: 'name' })
+        let changed = 0
         for (const p of plan) {
           const r = N.readNameBox(canvas, p.box)
-          if (r.text && r.conf >= 0.5) texts[p.i] = putName(texts[p.i], p.parts, r.text)
+          if (r.text && r.conf >= 0.5) { const t = putName(texts[p.i], p.parts, r.text); if (t !== texts[p.i]) changed++; texts[p.i] = t }
         }
-      }
-    } catch (e) { console.warn('이름 다시 읽기 실패 (처음 읽은 이름 그대로)', e) }
+        onProgress?.({ stage: 'name-done', tried: plan.length, changed })
+      } else onProgress?.({ stage: 'name-done', tried: 0, changed: 0 })
+    } catch (e) {
+      console.warn('이름 다시 읽기 실패 (처음 읽은 이름 그대로)', e)
+      onProgress?.({ stage: 'name-fail', error: String(e?.message || e).slice(0, 80) })
+    }
   }
   // 금액 자리: 숫자·쉼표·원만 다시 읽기
   if (cand.length) {
