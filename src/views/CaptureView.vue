@@ -106,7 +106,7 @@
               <!-- 고친 이름이면 원래 읽은 이름: 날짜 줄은 좁아서 따로 한 줄로 (길면 줄바꿈) -->
               <span v-if="it.raw && it.raw !== it.store" class="raw-name">원래 이름: {{ it.raw }}</span>
             </div>
-            <label class="amt">
+            <label class="amt" :class="it.kind === 'income' ? 'is-income' : it.kind === 'cancel' ? 'is-cancel' : 'is-expense'">
               <span class="sr-only">금액</span>
               <span class="sign" aria-hidden="true">{{ it.kind === 'income' ? '+' : it.kind === 'cancel' ? '' : '-' }}</span>
               <input
@@ -594,6 +594,10 @@ export default {
   .amt input { width: auto; field-sizing: content; min-width: 2ch; max-width: 96px; }
 }
 .amt input.income { color: var(--income); }
+/* 부호와 금액 색: 입금 파랑, 지출 빨강, 취소 회색 */
+.amt.is-income .sign, .amt.is-income input { color: var(--income); }
+.amt.is-expense .sign, .amt.is-expense input { color: var(--expense); }
+.amt.is-cancel .sign, .amt.is-cancel input { color: var(--text-sub); }
 .amt input:focus { outline: none; border-bottom: 1px dashed var(--accent); }
 .cancel .amt input { color: var(--text-sub); }
 .cats { display: flex; gap: 6px; flex-wrap: wrap; }
