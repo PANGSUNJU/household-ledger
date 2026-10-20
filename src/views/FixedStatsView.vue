@@ -202,14 +202,20 @@ export default {
     hasAny() { return this.txs.length > 0 || this.items.some((x) => x.is_active && x.kind === 'expense') },
     selIndex() { return this.months.findIndex((x) => x.key === this.selKey) },
     cur() { return this.months[this.selIndex] },
-    /** 가장 이른 고정 항목 시작 달: 이보다 앞은 기록이 없으니 더 불러오지 않는다 */
+    /** 가장 이른 고정 항목 시작 달 (처음 몇 칸을 보여줄지 정할 때 씀) */
     minKey() {
       const starts = this.items.map((x) => (x.start_date || '').slice(0, 7) + '-01').filter((k) => k.length === 10)
       const txMin = this.txs.reduce((a, t) => (!a || t.recurring_month < a ? t.recurring_month : a), '')
       const all = [...starts, txMin].filter(Boolean).sort()
       return all[0] || format(this.y, this.m, 1)
     },
-    canLoadMore() { return !!this.months[0] && this.months[0].key > this.minKey },
+    /** 어디까지 밀 수 있나: 최근 2년(24칸)까지는 기록이 없어도 빈 칸으로, 그보다 오래된 기록이 있으면 거기까지 */
+    limitKey() {
+      const two = addMonths(this.y, this.m, -23)
+      const k = format(two.y, two.m, 1)
+      return this.minKey < k ? this.minKey : k
+    },
+    canLoadMore() { return !!this.months[0] && this.months[0].key > this.limitKey },
     canPrev() { return this.selIndex > 0 || this.canLoadMore },
     canNext() { return this.selIndex < this.months.length - 1 },
     prevOfCur() {
@@ -304,7 +310,10 @@ export default {
       const el = this.$refs.scroller
       const before = el ? el.scrollWidth - el.scrollLeft : 0
       const oldFirst = this.months[0]
-      const add = 6
+      // 한도(limitKey)까지 남은 달만큼만 (최대 6칸)
+      const left = (oldFirst.y * 12 + oldFirst.m) - (+this.limitKey.slice(0, 4) * 12 + +this.limitKey.slice(5, 7))
+      const add = Math.min(6, left)
+      if (add <= 0) { this.loadingMore = false; return }
       this.count += add
       await this.$nextTick()
       if (el) el.scrollLeft = el.scrollWidth - before   // 붙인 만큼 밀어서 보던 자리 그대로
@@ -326,10 +335,8 @@ export default {
       try {
         const [items, cats] = await Promise.all([listRecurringItems(), listCategories({ includeHidden: true })])
         this.items = items; this.categories = cats
-        // 처음 불러올 달 수: 고정 항목을 시작한 달부터 (최소 6칸, 최대 12칸. 그 전은 밀면 더 불러옴)
-        const mk = this.minKey
-        const since = (this.y * 12 + this.m) - (+mk.slice(0, 4) * 12 + +mk.slice(5, 7)) + 1
-        this.count = Math.min(12, Math.max(6, since))
+        // 처음엔 12칸(최근 1년)을 불러 두고 6칸만 보여줌 → 바로 밀 수 있고, 더 밀면 6개월씩 더 불러옴
+        this.count = 12
         const first = addMonths(this.y, this.m, -(this.count - 1))
         this.txs = await listFixedTransactions(format(first.y, first.m, 1), format(this.y, this.m, 1))
         this.loadedFrom = format(first.y, first.m, 1)
