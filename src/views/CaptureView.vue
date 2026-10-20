@@ -56,6 +56,14 @@
             <strong>{{ g.mode === 'capture' ? `카드·은행 앱 캡처 ${gi + 1}` : '영수증' }}</strong>
             <span class="muted small">{{ g.items.length ? `${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
           </div>
+          <!-- 전체 선택: 결제 취소 줄은 빼고 이 캡처의 모든 줄 (입금·충전 포함) -->
+          <label v-if="pickable(g).length > 1" class="all-check">
+            <input
+              type="checkbox" class="check" :checked="allOn(g)" :indeterminate.prop="!allOn(g) && someOn(g)"
+              aria-label="이 캡처 전체 선택" @change="setAll(g, $event.target.checked)"
+            >
+            <span>전체</span>
+          </label>
         </section>
 
         <!-- 취소 영수증: 원래 구매 찾기 -->
@@ -221,6 +229,11 @@ export default {
   },
   methods: {
     won, calcAmount, label, holdLock,
+    /** 전체 선택에 들어가는 줄 (결제 취소 줄은 체크할 수 없어서 뺌) */
+    pickable(g) { return g.items.filter((it) => it.kind !== 'cancel') },
+    allOn(g) { const xs = this.pickable(g); return xs.length > 0 && xs.every((it) => it.checked) },
+    someOn(g) { return this.pickable(g).some((it) => it.checked) },
+    setAll(g, on) { for (const it of this.pickable(g)) it.checked = on },
     catsFor(it) { return this.categories.filter((c) => c.kind === (it.kind === 'income' ? 'income' : 'expense') && !c.is_refund) },
     visibleCats(it) {
       const all = this.catsFor(it)
@@ -469,6 +482,7 @@ export default {
 .group-head { display: flex; gap: 12px; align-items: center; padding-top: 4px; }
 .thumb { width: 56px; height: 72px; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
 .gh-text { display: flex; flex-direction: column; gap: 2px; }
+.all-check { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-sub); cursor: pointer; flex-shrink: 0; white-space: nowrap; }
 
 .item { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .item.off { opacity: 0.72; }
