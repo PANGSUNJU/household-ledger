@@ -220,8 +220,27 @@ ok('0007: 예전 내역은 지출', (await as(A, `select kind from quick_entries
 await as(A, `insert into quick_entries (name, amount, kind) values ('용돈', 100000, 'income')`)
 ok('0007: 수입 내역 저장', (await as(A, `select kind from quick_entries where name='용돈'`)).rows[0]?.kind === 'income')
 await expectError('0007: 지출/수입 말고는 막힘', A, `insert into quick_entries (name, amount, kind) values ('x', 1, 'refund')`)
-await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1])
+await db.exec('reset role;'); await db.exec(migrations[6])
 ok('0007: 다시 실행해도 괜찮음', true)
+
+// 0008: 원래 구매 분류를 바꾸면 환불의 빼는 분류도 따라감
+const shop8 = (await as(A, `select id from categories where name='쇼핑'`)).rows[0].id
+const food8 = (await as(A, `select id from categories where kind='expense' and name<>'쇼핑' and not is_savings and not is_refund and is_active limit 1`)).rows[0].id
+const refCat8 = (await as(A, `select id from categories where is_refund`)).rows[0].id
+const buy8 = (await as(A, `insert into transactions (kind, date, amount, store_name, category_id) values ('expense','2026-10-12',5000,'가게8',$1) returning id`, [shop8])).rows[0].id
+await as(A, `insert into transactions (kind, date, amount, store_name, category_id, refund_of_id) values ('income','2026-10-13',5000,'가게8',$1,$2)`, [refCat8, buy8])
+const refCat = async () => (await as(A, `select refund_category_id r from transactions where refund_of_id=$1`, [buy8])).rows[0].r
+await as(A, `update transactions set category_id=$1 where id=$2`, [food8, buy8])
+ok('0008: 구매 분류 바꾸면 환불도 따라감', (await refCat()) === food8)
+await as(A, `update transactions set category_id=$1 where id=$2`, [shop8, buy8])
+ok('0008: 다시 바꿔도 따라감', (await refCat()) === shop8)
+await as(A, `update transactions set amount=6000 where id=$1`, [buy8])
+ok('0008: 분류 말고 다른 걸 바꾸면 그대로', (await refCat()) === shop8)
+await as(B, `update transactions set category_id=null where id=$1`, [buy8])
+ok('0008: B는 A 구매를 못 바꿈', (await refCat()) === shop8)
+await db.exec('reset role;'); await db.exec(migrations[migrations.length - 1])
+ok('0008: 다시 실행해도 괜찮음', true)
+
 
 // 0006 이전에 가입해 '고정지출' 분류가 있던 사람: 0006 을 실행하면 숨겨지고, 지난 기록 분류는 그대로
 await db.exec(`reset role; insert into public.categories (user_id, kind, name, color, sort_order) values ('${A}', 'expense', '고정지출', '#E6DDD5', 9)`)
