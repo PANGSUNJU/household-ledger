@@ -32,7 +32,7 @@
         <button
           v-for="t in shown" :key="t.id" type="button" role="radio"
           class="item" :class="{ on: original && original.id === t.id }" :aria-checked="!!original && original.id === t.id"
-          @click="$emit('update:original', original && original.id === t.id ? null : t)"
+          @click="picked = true; $emit('update:original', original && original.id === t.id ? null : t)"
         >
           <span class="radio" aria-hidden="true" />
           <span class="main">
@@ -91,7 +91,9 @@ export default {
   data() {
     return {
       manual: this.startManual, query: this.initialQuery, items: [], loading: false, error: '', limit: 5,
-      reading: false, readingText: '', receiptMsg: '', usedOcr: false
+      reading: false, readingText: '', receiptMsg: '', usedOcr: false,
+      pinId: null,     // 처음 열 때 이미 연결돼 있던 구매 (수정 화면): 목록 맨 위에
+      picked: false    // 사용자가 목록에서 직접 눌렀으면 그 뒤로는 순서를 바꾸지 않음
     }
   },
   computed: {
@@ -106,6 +108,11 @@ export default {
         String(t.amount).includes(q))
     },
     shown() {
+      // 수정 화면: 처음 연결돼 있던 구매를 맨 위에 (검색 중이 아닐 때만)
+      if (this.pinId && !this.query.trim()) {
+        const pin = this.items.find((t) => t.id === this.pinId) || (this.original?.id === this.pinId ? this.original : null)
+        if (pin) return [pin, ...this.filtered.filter((t) => t.id !== this.pinId).slice(0, this.limit - 1)]
+      }
       const list = this.filtered.slice(0, this.limit)
       // 고른 구매는 목록 밖에 있어도 보이게
       if (this.original && !list.some((t) => t.id === this.original.id)) list.unshift(this.original)
@@ -120,7 +127,12 @@ export default {
     }
   },
   watch: {
-    query() { this.limit = 5 }
+    query() { this.limit = 5 },
+    /** 수정 화면처럼 처음부터(또는 불러온 뒤) 연결된 구매가 있으면 맨 위로. 사용자가 고르기 시작한 뒤에는 그대로 */
+    original: {
+      immediate: true,
+      handler(v) { if (v && !this.pinId && !this.picked) this.pinId = v.id }
+    }
   },
   created() { this.load() },
   beforeUnmount() {
