@@ -496,8 +496,12 @@ export default {
 .sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .raw-name { font-size: 11.5px; line-height: 16px; color: var(--text-faint); overflow-wrap: anywhere; }
 .date { border: 0; background: transparent; font-size: 12px; color: var(--text-sub); padding: 0; width: 112px; }
-.amt { display: flex; align-items: center; font-weight: 700; font-size: 16px; }
+.amt { display: flex; align-items: center; justify-content: flex-end; gap: 1px; width: 104px; flex-shrink: 0; font-weight: 700; font-size: 16px; }
 .amt input { width: 92px; border: 0; background: transparent; font-size: 16px; font-weight: 700; text-align: right; color: var(--text); padding: 2px 0; }
+/* 칸 너비를 숫자 길이에 맞춰 +/- 가 숫자 바로 앞에 붙게 (지원 안 하는 브라우저는 예전처럼 92px) */
+@supports (field-sizing: content) {
+  .amt input { width: auto; field-sizing: content; min-width: 2ch; max-width: 96px; }
+}
 .amt input.income { color: var(--income); }
 .amt input:focus { outline: none; border-bottom: 1px dashed var(--accent); }
 .cancel .amt input { color: var(--text-sub); }
