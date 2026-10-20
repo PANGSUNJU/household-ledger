@@ -162,11 +162,31 @@ function captureItems(text, today, needDate) {
   const signed = all.flatMap((x) => x.amounts).filter((a) => a.sign)
   const bankStyle = signed.some((a) => a.sign === '+') || (signed.length >= 2 && signed.length >= all.filter((x) => x.amounts.length).length / 2)
 
+  // 날짜가 기록 '아래'에 붙는 화면인지 (신한 매출전표: 가게·금액 줄 밑에 '2026.10.19 18:43 · 본인 …')
+  //  · 시간이 같이 있는 날짜 줄이 바로 위 금액 줄 밑에 오는 경우가, 바로 아래 금액 줄 위에 오는 경우보다 많으면
+  let below = 0, above = 0
+  for (let i = 0; i < all.length; i++) {
+    const x = all[i]
+    if (!x.date || x.amounts.length || !hasTime(x.l)) continue
+    if (i > 0 && all[i - 1].amounts.length && !all[i - 1].date) below++
+    else if (i + 1 < all.length && all[i + 1].amounts.length) above++
+  }
+  const dateBelowItem = below > above
+
   const items = []
   let curDate = null
+  let waiting = null   // 아래 날짜 줄을 기다리는 기록
   for (let i = 0; i < all.length; i++) {
     const { l, amounts, date } = all[i]
-    if (date && !amounts.length) { curDate = date; continue }
+    if (date && !amounts.length) {
+      if (dateBelowItem && waiting && hasTime(l)) {
+        waiting.date = date
+        delete waiting.noDate
+      }
+      waiting = null
+      curDate = date
+      continue
+    }
     if (date) curDate = date
     if (!amounts.length) continue
 
@@ -188,18 +208,31 @@ function captureItems(text, today, needDate) {
     }
 
     // 아랫줄들(다음 금액·날짜 줄 전까지)에 '취소'가 있는지
+    // (날짜가 아래에 붙는 화면은 그 날짜 줄 밑의 '· 신용 · 승인취소' 줄까지)
     let ctx = l
-    for (let j = i + 1; j < all.length && !all[j].amounts.length && !all[j].date; j++) ctx += ' ' + all[j].l
+    let passedDate = false
+    for (let j = i + 1; j < all.length && !all[j].amounts.length; j++) {
+      if (all[j].date) {
+        if (!dateBelowItem || passedDate || !hasTime(all[j].l)) break
+        passedDate = true
+      }
+      ctx += ' ' + all[j].l
+    }
 
     let kind = 'expense'
     if (bankStyle) kind = a.sign === '+' ? 'income' : 'expense'
     else if (a.sign === '-') kind = 'cancel'
     if (CANCEL.test(ctx)) kind = 'cancel'
 
-    items.push({ date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}) })
+    const item = { date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}) }
+    items.push(item)
+    waiting = item
   }
   return items
 }
+
+/** 시간(18:43)이 들어 있는 줄인지 */
+function hasTime(l) { return /(?<!\d)\d{1,2}:\d{2}(?!\d)/.test(l) }
 
 /** 아래쪽에 날짜 머리글이 있는지 (위가 잘린 목록인지) */
 function dateBelow(all, i) {

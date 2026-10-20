@@ -6,6 +6,7 @@
  *  · 처음 한 번은 글자 데이터(약 4.5MB)를 받느라 느리고, 그 뒤엔 브라우저에 저장돼 빠르다
  */
 import { createWorker } from 'tesseract.js'
+import { pickCuts } from './ocr-cut'
 
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 let workerPromise = null
@@ -25,8 +26,8 @@ function getWorker() {
 }
 
 /**
- * 사진·캡처를 읽기 좋게: 사진 방향 바로잡기 + 너무 크면 줄이기 (긴 변 2400px)
- * 길게 이어 찍은 캡처는 폭만 맞춘다
+ * 사진·캡처를 읽기 좋게: 사진 방향 바로잡기 + 너무 크면 줄이기
+ * 길게 이어 찍은 캡처는 여러 조각으로 나눠 읽는다 (cutPoints)
  */
 /** 이미지 파일 열기: 사진 방향 옵션 → 옵션 없이 → <img> 순서로 시도 */
 async function decode(file) {
@@ -50,24 +51,54 @@ async function decode(file) {
 
 async function prepare(file, crop) {
   const bmp = await decode(file)
-  // 고른 영역만 (비율 → 픽셀)
-  const c = crop && crop.w > 0 && crop.h > 0 ? crop : { x: 0, y: 0, w: 1, h: 1 }
-  const sx = Math.round(c.x * bmp.width), sy = Math.round(c.y * bmp.height)
-  const sw = Math.max(1, Math.round(c.w * bmp.width)), sh = Math.max(1, Math.round(c.h * bmp.height))
+  try {
+    // 고른 영역만 (비율 → 픽셀)
+    const c = crop && crop.w > 0 && crop.h > 0 ? crop : { x: 0, y: 0, w: 1, h: 1 }
+    const sx = Math.round(c.x * bmp.width), sy = Math.round(c.y * bmp.height)
+    const sw = Math.max(1, Math.round(c.w * bmp.width)), sh = Math.max(1, Math.round(c.h * bmp.height))
+    // 길게 이어 찍은 캡처: 통째로 줄이면 글자가 너무 작아져서 못 읽는다
+    // → 기록 사이 빈 줄에서 여러 조각으로 잘라 조각마다 보통 크기로 읽는다
+    const cuts = cutPoints(bmp, sx, sy, sw, sh)
+    const pieces = []
+    for (let k = 0; k < cuts.length - 1; k++) pieces.push(drawPiece(bmp, sx, sy + cuts[k], sw, cuts[k + 1] - cuts[k], !!crop))
+    return pieces
+  } finally {
+    bmp.close?.()   // <img> 에는 close 가 없다
+  }
+}
+
+/** 한 조각을 읽기 좋은 크기의 캔버스로 */
+function drawPiece(bmp, sx, sy, sw, sh, padded) {
   const MAX_W = 1600, MAX_SIDE = 6000
   let scale = Math.min(1, MAX_W / sw, MAX_SIDE / sh)
-  if (sw < 700) scale = Math.min(2, 1000 / sw)   // 작은 이미지는 키워야 잘 읽힌다
+  if (sw < 700) scale = Math.min(2, 1000 / sw, MAX_SIDE / sh)   // 작은 이미지는 키워야 잘 읽힌다
   const w = Math.round(sw * scale), h = Math.round(sh * scale)
   // 자른 이미지는 글자가 가장자리에 붙어 잘 못 읽어서 흰 여백을 둘러 준다
-  const pad = crop ? 32 : 0
+  const pad = padded ? 32 : 0
   const canvas = document.createElement('canvas')
   canvas.width = w + pad * 2; canvas.height = h + pad * 2
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.drawImage(bmp, sx, sy, sw, sh, pad, pad, w, h)
-  bmp.close?.()   // <img> 에는 close 가 없다
   darkToLight(ctx, canvas.width, canvas.height)
   return canvas
+}
+
+/**
+ * 긴 캡처를 자를 자리 (조각 시작·끝 y, 원본 픽셀). 보통 캡처는 [0, sh] 한 조각
+ * 조각 높이는 폭의 약 2.5배(폰 한 화면쯤). 그 근처에서 글자가 없는 가로줄(빈 줄)을 찾아 자른다
+ */
+export function cutPoints(bmp, sx, sy, sw, sh) {
+  const piece = Math.round(sw * 2.5)
+  if (sh <= piece * 1.4) return [0, sh]
+  // 작게 줄인 그림으로 가로줄마다 '글자가 있는지' 본다 (폭 120px, 세로는 원본 1/ratio)
+  const aw = 120, ratio = sw / aw
+  const ah = Math.max(1, Math.round(sh / ratio))
+  const cv = document.createElement('canvas')
+  cv.width = aw; cv.height = ah
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, aw, ah)
+  return pickCuts(ctx.getImageData(0, 0, aw, ah).data, aw, ah, ratio, sh, piece)
 }
 
 /**
@@ -100,9 +131,19 @@ export async function readImage(file, onProgress, crop = null) {
     else onProgress({ stage: 'load', pct: Math.round((m.progress || 0) * 100) })
   }
   try {
-    const [worker, canvas] = await Promise.all([getWorker(), prepare(file, crop)])
-    const { data } = await worker.recognize(canvas)
-    return data.text || ''
+    const [worker, pieces] = await Promise.all([getWorker(), prepare(file, crop)])
+    // 조각이 여럿이면 차례로 읽어 이어 붙인다 (진행률은 전체 기준으로)
+    const texts = []
+    for (let k = 0; k < pieces.length; k++) {
+      if (pieces.length > 1) progressFn = (m) => {
+        if (!onProgress) return
+        if (m.status === 'recognizing text') onProgress({ stage: 'read', pct: Math.round((k + m.progress) / pieces.length * 100) })
+      }
+      const { data } = await worker.recognize(pieces[k])
+      texts.push(data.text || '')
+      pieces[k].width = pieces[k].height = 0   // 메모리 바로 비우기
+    }
+    return texts.join('\n')
   } finally {
     progressFn = null
   }

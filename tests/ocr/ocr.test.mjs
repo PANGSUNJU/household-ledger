@@ -69,6 +69,16 @@ ok('하나카드: 말줄임(…)을 취소로 보지 않음', h[3]?.kind === 'ex
 ok('하나카드: 아이콘 글자 안 붙음', h[2]?.store === '동네마트 정육코너' && h[0]?.store === '쿠팡(쿠페이)', show(h))
 ok('하나카드: 카드 번호·일시불이 이름에 없음', h.every((x) => !/1234|일시불|본인/.test(x.store)), show(h))
 
+// 날짜가 기록 아래에 붙는 카드 앱 (신한 매출전표 모양, 가짜 이름)
+const db = parseCapture(await read('date-below-list.png'), '2026-10-20')
+const dbOk = (store, date, amount, kind = 'expense') => db.some((x) => x.store.startsWith(store) && x.date === date && x.amount === amount && x.kind === kind)
+ok('아래 날짜: 6건', db.length === 6, show(db))
+ok('아래 날짜: 맨 위 쿠팡은 바로 아래 10/19', dbOk('쿠팡', '2026-10-19', 33750) && !db[0]?.noDate, show(db))
+ok('아래 날짜: 씨유 10/17, 쿠팡이츠 10/17', dbOk('씨유', '2026-10-17', 3600) && dbOk('쿠팡이츠', '2026-10-17', 16900), show(db))
+ok('아래 날짜: 한 칸씩 밀리지 않음 (메가커피 10/15, 국밥 10/11)', dbOk('메가커피', '2026-10-15', 14900) && dbOk('가마', '2026-10-11', 23000), show(db))
+ok('아래 날짜: 날짜 줄 밑의 승인취소도 알아봄', db.some((x) => x.store.startsWith('가나다상회') && x.date === '2026-10-13' && x.kind === 'cancel'), show(db))
+ok('아래 날짜: 취소 아닌 건은 지출', db.filter((x) => x.kind === 'expense').length === 5, show(db))
+
 // 5. 분류 짐작
 ok('분류 짐작: 메가커피 → 카페·간식', guessCategoryName('메가커피 경산중앙점') === '카페·간식')
 ok('분류 짐작: 다이소 → 생활용품', guessCategoryName('(주)아성다이소 경산점') === '생활용품')
