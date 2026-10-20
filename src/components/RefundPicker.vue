@@ -13,7 +13,7 @@
         <label class="search">
           <AppIcon name="search" :size="18" />
           <span class="sr-only">구매 검색</span>
-          <input v-model="query" type="search" placeholder="사용처·금액으로 찾기">
+          <input v-model="query" type="search" placeholder="사용처·금액">
         </label>
         <label class="receipt" :class="{ busy: reading }">
           <AppIcon name="image" :size="18" />{{ reading ? readingText : '영수증으로 찾기' }}
