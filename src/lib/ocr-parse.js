@@ -18,6 +18,8 @@ export function normalize(text) {
     .replace(/[ㆍ•∙]/g, '·')
     .replace(/[−–—]/g, '-')
     .replace(/[ \t　]+/g, ' ')
+    // 날짜와 시간이 붙어 읽힌 것 띄우기 ('2026.09.2119:24' → '2026.09.21 19:24')
+    .replace(/((?:19|20)\d\d[.\-/]\d{1,2}[.\-/]\d{2})(\d{1,2}:\d{2})/g, '$1 $2')
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
@@ -86,6 +88,15 @@ export function findAmounts(line, { needWon = true } = {}) {
   for (const m of line.matchAll(AMOUNT_WON)) {
     const v = toNumber(m[2])
     if (v != null && v > 0) out.push({ sign: m[1] || '', value: v, index: m.index, raw: m[0] })
+  }
+  // '원' 이 숫자(9·8·2)로 읽혀 줄 끝에 붙은 경우 ('+5009' → +500원, '44,0008' → 44,000원)
+  //  · 앱은 1,000 이상에 꼭 쉼표를 쓰므로, 쉼표 없는 4자리·쉼표 뒤 4자리는 진짜 금액일 수 없다
+  if (!out.length) {
+    const m = line.match(/(^|\s)([+-])(\d{3})[982]\s*$/) || line.match(/(^|\s)([+-])?(\d{1,3}(?:,\d{3})+)[982]\s*$/)
+    if (m) {
+      const v = toNumber(m[3])
+      if (v != null && v > 0) out.push({ sign: m[2] || '', value: v, index: m.index + m[1].length, raw: m[0].trim() })
+    }
   }
   if (!out.length && !needWon) {
     for (const m of line.matchAll(AMOUNT_BARE)) {
@@ -198,8 +209,11 @@ function captureItems(text, today, needDate) {
     const a = amounts[amounts.length - 1]   // 줄 맨 오른쪽 금액
     let store = stripIcon(cleanStore(l.slice(0, a.index) + ' ' + l.slice(a.index + a.raw.length)))
     const named = (store.match(/[가-힣A-Za-z]/g) || []).length >= 2
-    // 은행 앱: 이름 없이 부호 없는 금액만 있는 줄 = 바로 위 기록의 잔액
-    if (bankStyle && !a.sign && !named) continue
+    // 은행 앱: 이름 없이 부호 없는 금액만 있는 줄 = 바로 위 기록의 잔액 (금액 맞춰 보기에 씀)
+    if (bankStyle && !a.sign && !named) {
+      if (waiting && waiting.balance == null && hasTime(l)) waiting.balance = a.value
+      continue
+    }
     // 첫 날짜 머리글 위쪽: 계좌 잔액·카드 이름 등은 빼고, 이름 있는 기록만 '날짜 확인'으로
     let noDate = false
     if (needDate && !curDate) {
@@ -232,6 +246,37 @@ function captureItems(text, today, needDate) {
     const item = { date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}), ...(CHARGE.test(l) && kind !== 'cancel' ? { charge: true } : {}) }
     items.push(item)
     waiting = item
+  }
+  fixByBalance(items)
+  for (const it of items) delete it.balance
+  return items
+}
+
+/**
+ * 잔액으로 금액 맞춰 보기 (토스·은행 화면: 기록마다 '남은 잔액'이 찍힘)
+ *  · 위가 최신: 위 기록 잔액 = 아래 기록 잔액 + (입금 +, 지출 -)
+ *  · 금액이 계산과 다르면, 그 기록의 위·아래 이웃 기록이 계산과 맞을 때만(= 잔액들을 믿을 수 있을 때만) 고친다
+ *  · 고친 건 fixed: 'balance' 표시
+ */
+export function fixByBalance(items) {
+  const signed = (x) => (x.kind === 'income' ? 1 : x.kind === 'expense' ? -1 : 0) * x.amount
+  const ok = (i) => {   // i 번째 기록이 아래(i+1) 잔액과 맞는지
+    const a = items[i], b = items[i + 1]
+    return a && b && a.balance != null && b.balance != null && signed(a) !== 0 && a.balance === b.balance + signed(a)
+  }
+  // 잔액이 있는 짝이 둘 이상 맞아야 '위가 최신' 화면으로 본다
+  let good = 0
+  for (let i = 0; i < items.length - 1; i++) if (ok(i)) good++
+  if (good < 2) return items
+  for (let i = 1; i < items.length - 1; i++) {
+    const a = items[i], b = items[i + 1]
+    if (ok(i) || a.balance == null || b.balance == null || !(a.kind === 'income' || a.kind === 'expense')) continue
+    if (!ok(i - 1)) continue                            // 위 이웃이 맞아야 내 잔액을 믿음
+    if (i + 2 < items.length && !ok(i + 1)) continue   // 아래 이웃도 (있으면) 맞아야 아래 잔액을 믿음
+    const diff = a.balance - b.balance
+    if (diff === 0 || (diff > 0) !== (a.kind === 'income')) continue
+    a.amount = Math.abs(diff)
+    a.fixed = 'balance'
   }
   return items
 }

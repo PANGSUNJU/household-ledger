@@ -5,7 +5,7 @@
  *   실행: npm run test:ocr
  */
 import { createWorker } from 'tesseract.js'
-import { parseCapture, parseReceipt, guessCategoryName } from '../../src/lib/ocr-parse.js'
+import { parseCapture, parseReceipt, guessCategoryName, findAmounts } from '../../src/lib/ocr-parse.js'
 
 const today = '2026-10-16'
 let pass = 0, fail = 0
@@ -108,6 +108,37 @@ const sl = parseCapture(`10월 12일
 ok("'/200원' → 7,200원", sl[0]?.amount === 7200 && sl[0]?.kind === 'expense', show(sl))
 ok("이름 끝 '_' 지움", sl[0]?.store === '가나다버거(유)경산점', show(sl))
 ok('날짜 10/12 는 그대로 날짜', sl.every((x) => x.date === '2026-10-12'), show(sl))
+
+// 잔액으로 금액 맞춰 보기 (토스 모양 글자, 가짜 가게)
+const TOSS_TXT = (mac) => `10월 12일
+체크카드 복권 당첨 +13원
+18:48 5,213원
+가나다버거 경산점 -${mac}원
+18:48 5,200원
+카드잔액자동충전 +10,000원
+18:48 12,400원
+9월교통카드이용 -8,100원
+16:17 2,400원
+카드잔액자동충전 +10,000원
+16:17 10,500원
+카드 캐시백 +500원
+12:05 500원`
+const bf = parseCapture(TOSS_TXT('1,200'), '2026-10-20')
+ok('잔액: 7,200 을 1,200 으로 잘못 읽어도 7,200 으로 고침', bf.find((x) => x.store.startsWith('가나다버거'))?.amount === 7200 && bf.find((x) => x.store.startsWith('가나다버거'))?.fixed === 'balance', show(bf))
+ok('잔액: 맞게 읽은 건 그대로 (fixed 없음)', bf.filter((x) => x.fixed).length === 1, show(bf))
+const bfOk = parseCapture(TOSS_TXT('7,200'), '2026-10-20')
+ok('잔액: 다 맞으면 아무것도 안 고침', bfOk.every((x) => !x.fixed) && bfOk.map((x) => x.amount).join() === '13,7200,10000,8100,10000,500', show(bfOk))
+const bfBal = parseCapture(TOSS_TXT('7,200').replace('16:17 2,400원', '16:17 2,900원'), '2026-10-20')
+ok('잔액: 잔액 하나를 잘못 읽으면 금액은 건드리지 않음', bfBal.map((x) => x.amount).join() === '13,7200,10000,8100,10000,500', show(bfBal))
+ok('잔액: 결과에 잔액 값은 안 남김', bf.every((x) => x.balance === undefined), show(bf))
+
+// '원' 이 숫자로 읽힌 경우
+const wn = (l) => findAmounts(l).map((a) => a.sign + a.value).join()
+ok("'+5009' → +500", wn('카드 캐시백 +5009') === '+500')
+ok("'44,0008' → 44,000", wn('가나다상회 44,0008') === '44000')
+ok("'-1000' 처럼 0 으로 끝나면 건드리지 않음", wn('가나다 -1000') === '')
+ok("시간·잔액 줄 '12:05 5009' 는 부호 없어서 그대로 안 읽음", wn('12:05 5009') === '')
+ok("멀쩡한 '7,200원' 은 그대로", wn('가나다 -7,200원') === '-7200')
 
 // 5. 분류 짐작
 ok('분류 짐작: 메가커피 → 카페·간식', guessCategoryName('메가커피 경산중앙점') === '카페·간식')
