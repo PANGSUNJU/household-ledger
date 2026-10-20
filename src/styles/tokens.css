@@ -55,6 +55,9 @@ html, body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* 한글: 낱말 중간이 아니라 띄어쓰기 자리에서 줄바꿈. 띄어쓰기 없이 아주 긴 글자는 넘치지 않게 끊음 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 button, input, select, textarea { font-family: inherit; color: inherit; }

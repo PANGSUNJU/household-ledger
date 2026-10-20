@@ -231,7 +231,7 @@ export default {
 .fl-main strong { font-size: 15px; }
 .chev { color: #B8A69C; }
 .periods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.periods button { height: 36px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 13px; color: var(--text-sub); }
+.periods button { height: 36px; padding: 0; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); font-size: 12.5px; white-space: nowrap; color: var(--text-sub); }
 .periods button.on { border-color: #E8806A; background: #FFE6DA; color: #8E3F33; font-weight: 600; }
 .custom { display: flex; align-items: center; gap: 6px; }
 .custom input { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 14px; background: var(--surface); }

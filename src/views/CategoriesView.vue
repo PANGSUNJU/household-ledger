@@ -14,10 +14,11 @@
       <section v-sortable="onSort" class="card" :aria-label="(kind === 'expense' ? '지출' : '수입') + ' 분류'">
         <ManageRow v-for="c in active" :key="c.id" :name="c.name">
           <template #lead><span class="swatch" :style="{ background: c.color }" aria-hidden="true" /></template>
-          {{ c.name }}
+          <span class="cat-name">{{ c.name }}</span>
+          <!-- 표시는 이름 아래 작은 글씨로 (옆에 두면 이름이 '저축/투 / 자'처럼 끊김) -->
+          <span v-if="c.is_savings" class="tag">예산에서 빼요</span>
+          <span v-if="c.is_refund" class="tag lock">지울 수 없음</span>
           <template #trail>
-            <span v-if="c.is_savings" class="tag">예산에서 빼요</span>
-            <span v-if="c.is_refund" class="tag lock">지울 수 없음</span>
             <button type="button" class="mini" @click="openEdit(c)">수정</button>
             <button v-if="!c.is_refund" type="button" class="mini" @click="setActive(c, false)">숨기기</button>
           </template>
@@ -111,3 +112,6 @@ export default {
 </script>
 
 <style scoped src="./manage.css"></style>
+<style scoped>
+.cat-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
