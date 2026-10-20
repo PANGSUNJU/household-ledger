@@ -56,7 +56,8 @@
           <div class="gh-text">
             <strong>{{ g.mode === 'capture' ? `카드·은행 앱 캡처 ${gi + 1}` : '영수증' }}</strong>
             <span class="muted small">{{ g.items.length ? `${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
-            <span v-if="g.sec" class="muted small read-time">읽는 데 {{ g.sec }}초{{ g.boost ? ' · 이름 더 정확하게(시험) 켜짐' : '' }}</span>
+            <span v-if="g.sec" class="muted small read-time">읽는 데 {{ g.sec }}초{{ g.boost ? ` · 이름 시험 켜짐: ${g.nameChanged || 0}/${g.nameTried || 0}개 고침` : '' }}</span>
+            <span v-if="g.nameFail" class="small name-fail">이름 다시 읽기를 못 했어요 ({{ g.nameFail }})</span>
           </div>
           <!-- 전체 선택: 결제 취소 줄은 빼고 이 캡처의 모든 줄 (입금·충전 포함) -->
           <label v-if="pickable(g).length > 1" class="all-check">
@@ -387,19 +388,22 @@ export default {
           this.readingText = `${tag}읽을 준비 중…`
           const boost = nameBoostOn()
           const t0 = performance.now()
-          const text = await readImage(files[i], ({ stage, pct }) => {
+          const nameInfo = { tried: 0, changed: 0, fail: '' }
+          const text = await readImage(files[i], ({ stage, pct, tried, changed, error }) => {
+            if (stage === 'name-done') { nameInfo.tried += tried; nameInfo.changed += changed; return }
+            if (stage === 'name-fail') { nameInfo.fail = error || '알 수 없음'; return }
             this.readingText = stage === 'read' ? `${tag}글자 읽는 중 ${pct}%`
               : stage === 'name-load' ? `${tag}이름 읽기 도구 준비 중… (처음 한 번은 약 16MB)`
                 : stage === 'name' ? `${tag}가게 이름 다시 읽는 중…`
                   : `${tag}읽기 도구 준비 중…`
           }, crop, { name: boost })
-          this.lastRead = { sec: (performance.now() - t0) / 1000, boost }
+          this.lastRead = { sec: (performance.now() - t0) / 1000, boost, ...nameInfo }
           try { localStorage.setItem('ledger.ocrReady', '1') } catch { /* 저장 못 함 */ }
           this.firstLoad = false
           await this.addGroup(files[i], text)
           // [시험 기능] 읽는 데 걸린 시간 (이름 더 정확하게 켜고 끄며 비교하려고)
           const g = this.groups[this.groups.length - 1]
-          if (g) { g.sec = Math.round(this.lastRead.sec * 10) / 10; g.boost = this.lastRead.boost }
+          if (g) Object.assign(g, { sec: Math.round(this.lastRead.sec * 10) / 10, boost: this.lastRead.boost, nameTried: this.lastRead.tried, nameChanged: this.lastRead.changed, nameFail: this.lastRead.fail })
         }
       } catch (err) {
         this.error = navigator.onLine
@@ -566,6 +570,7 @@ export default {
 .thumb { width: 56px; height: 72px; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
 .gh-text { display: flex; flex-direction: column; gap: 2px; }
 .read-time { font-size: 11px; color: var(--text-faint); }
+.name-fail { font-size: 11px; color: var(--expense); }
 .all-check { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-sub); cursor: pointer; flex-shrink: 0; white-space: nowrap; }
 
 .item { padding: 14px 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
