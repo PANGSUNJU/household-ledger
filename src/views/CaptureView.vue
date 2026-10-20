@@ -118,6 +118,7 @@
             <span>취소 건이라 빼뒀어요</span>
             <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
           </div>
+          <p v-if="it.fixed === 'balance'" class="info small-info">남은 잔액으로 금액을 맞췄어요</p>
           <p v-if="it.charge && !it.checked" class="info small-info">잔액 충전이라 빼뒀어요</p>
           <p v-else-if="it.kind === 'income' && !it.checked" class="info small-info">입금이라 빼뒀어요</p>
         </article>
@@ -338,7 +339,7 @@ export default {
         const raw = f.store
         g.items.push({
           id: ++seq, raw, store: this.aliases[raw] || raw, date: f.date > today ? today : f.date,
-          amount: f.amount, kind: f.kind, memo: f.memo || '', charge: !!f.charge,
+          amount: f.amount, kind: f.kind, memo: f.memo || '', charge: !!f.charge, fixed: f.fixed || '',
           checked: f.kind === 'expense' && !f.noDate && !f.charge, category_id: null, allCats: false, dup: false, match: null
         })
       }

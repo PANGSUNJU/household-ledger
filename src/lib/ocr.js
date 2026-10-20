@@ -7,6 +7,7 @@
  */
 import { createWorker } from 'tesseract.js'
 import { pickCuts } from './ocr-cut'
+import { flatLines, amountBox, cleanReread, replaceAmount, pickAmount, dateBox, cleanDate, replaceDate } from './ocr-amount'
 
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 let workerPromise = null
@@ -139,13 +140,77 @@ export async function readImage(file, onProgress, crop = null) {
         if (!onProgress) return
         if (m.status === 'recognizing text') onProgress({ stage: 'read', pct: Math.round((k + m.progress) / pieces.length * 100) })
       }
-      const { data } = await worker.recognize(pieces[k])
-      texts.push(data.text || '')
+      texts.push(await readPiece(worker, pieces[k]))
       pieces[k].width = pieces[k].height = 0   // 메모리 바로 비우기
     }
     return texts.join('\n')
   } finally {
     progressFn = null
+  }
+}
+
+/** 한 조각 읽기: 전체를 읽고 → 금액 자리만 숫자로 다시 읽어 바꿔 넣기 */
+async function readPiece(worker, canvas) {
+  const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true })
+  const lines = flatLines(data.blocks)
+  if (!lines.length) return data.text || ''
+  const texts = lines.map((l) => (l.text || '').replace(/\n+$/, ''))
+  // 금액 자리: 숫자·쉼표·원만 다시 읽기
+  const cand = []
+  lines.forEach((l, i) => { const r = amountBox(l); if (r) cand.push({ i, ...r }) })
+  if (cand.length) {
+    let again = []
+    try { again = await rereadBoxes(worker, canvas, cand.map((c) => c.box), '0123456789,원+-') } catch (e) { console.warn('금액 다시 읽기 실패', e) }
+    cand.forEach((c, k) => {
+      const amt = pickAmount(c.parts, cleanReread(again[k]))
+      if (amt) texts[c.i] = replaceAmount(texts[c.i], c.parts, amt)
+    })
+  }
+  // 깨진 날짜(2026.09.2?): 숫자·점·쌍점만 다시 읽기
+  const dcand = []
+  lines.forEach((l, i) => { const r = dateBox(l); if (r) dcand.push({ i, ...r }) })
+  if (dcand.length) {
+    let again = []
+    try { again = await rereadBoxes(worker, canvas, dcand.map((c) => c.box), '0123456789.:') } catch (e) { console.warn('날짜 다시 읽기 실패', e) }
+    dcand.forEach((c, k) => {
+      const d = cleanDate(again[k])
+      if (d) texts[c.i] = replaceDate(texts[c.i], c.parts, d)
+    })
+  }
+  return texts.join('\n')
+}
+
+/**
+ * 고른 자리들을 잘라 세로로 쌓은 그림 하나로 만들어 한 번에 읽는다 (whitelist 글자만)
+ * → 자리마다 읽은 글자 (못 읽으면 '')
+ */
+async function rereadBoxes(worker, src, boxes, whitelist) {
+  const H = 56, GAP = 36, PADX = 8, PADY = 6
+  const crops = boxes.map((b) => {
+    const sx = Math.max(0, b.x0 - PADX), sy = Math.max(0, b.y0 - PADY)
+    const sw = Math.min(src.width, b.x1 + PADX) - sx, sh = Math.min(src.height, b.y1 + PADY) - sy
+    const scale = H / Math.max(1, sh)
+    return { sx, sy, sw, sh, w: Math.max(1, Math.round(sw * scale)) }
+  })
+  const W = Math.max(...crops.map((c) => c.w)) + GAP * 2
+  const canvas = document.createElement('canvas')
+  canvas.width = W; canvas.height = GAP + crops.length * (H + GAP)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+  crops.forEach((c, k) => ctx.drawImage(src, c.sx, c.sy, c.sw, c.sh, GAP, GAP + k * (H + GAP), c.w, H))
+  await worker.setParameters({ tessedit_char_whitelist: whitelist, tessedit_pageseg_mode: '6' })
+  try {
+    const { data } = await worker.recognize(canvas, {}, { text: false, blocks: true })
+    const out = crops.map(() => '')
+    for (const l of flatLines(data.blocks)) {
+      const cy = (l.bbox.y0 + l.bbox.y1) / 2
+      const k = Math.floor((cy - GAP / 2) / (H + GAP))
+      if (k >= 0 && k < out.length) out[k] += (l.text || '').trim()
+    }
+    return out
+  } finally {
+    await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '6' })
+    canvas.width = canvas.height = 0
   }
 }
 
