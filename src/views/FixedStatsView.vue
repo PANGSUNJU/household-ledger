@@ -25,7 +25,10 @@
           </div>
 
           <!-- 옆으로 밀면 지난 달이 나오고, 왼쪽 끝에 가까워지면 그 전 달을 불러와 이어 붙인다 -->
-          <div ref="scroller" class="plot-scroll" @scroll.passive="onScroll">
+          <div
+            ref="scroller" class="plot-scroll" :class="{ dragging: drag.on }"
+            @scroll.passive="onScroll" @pointerdown="dragStart" @click.capture="dragClick"
+          >
             <div class="plot">
               <button
                 v-for="(mo, i) in months" :key="mo.key" type="button" class="col"
@@ -125,6 +128,7 @@ export default {
       loadingMore: false,
       selKey: format(y, m, 1),
       firstVisible: 0,        // 차트에서 지금 보이는 첫 칸 번호
+      drag: { on: false, x: 0, left: 0, moved: false, justDragged: false },   // PC 마우스로 끌기
       txs: [], items: [], categories: [],
       loading: true, error: '', setupMissing: false
     }
@@ -256,6 +260,7 @@ export default {
     diffClass() { return this.diff > 0 ? 'up' : this.diff < 0 ? 'down' : '' }
   },
   created() { this.load() },
+  beforeUnmount() { window.removeEventListener('pointermove', this.dragMove); window.removeEventListener('pointerup', this.dragEnd) },
   methods: {
     won,
     compactWon(n) {
@@ -292,6 +297,42 @@ export default {
       })
     },
     select(key) { this.selKey = key; this.reveal(key) },
+    /*
+     * PC 마우스로 차트 끌기 (폰 손가락 밀기는 브라우저가 알아서 하므로 마우스만)
+     *  · 5px 넘게 끌면 '이동', 아니면 손을 뗄 때 원래대로 '그달 선택'(클릭)
+     *  · 끄는 동안은 칸 맞춤(스냅)을 잠시 끄고, 놓으면 다시 켜서 가까운 칸에 멈춤
+     */
+    dragStart(e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return
+      const el = this.$refs.scroller
+      this.drag = { on: true, x: e.clientX, left: el.scrollLeft, moved: false, justDragged: false }
+      el.style.scrollSnapType = 'none'
+      window.addEventListener('pointermove', this.dragMove)
+      window.addEventListener('pointerup', this.dragEnd, { once: true })
+    },
+    dragMove(e) {
+      if (!this.drag.on) return
+      const dx = e.clientX - this.drag.x
+      if (Math.abs(dx) > 5) this.drag.moved = true
+      if (this.drag.moved) this.$refs.scroller.scrollLeft = this.drag.left - dx
+    },
+    dragEnd() {
+      window.removeEventListener('pointermove', this.dragMove)
+      const el = this.$refs.scroller
+      const moved = this.drag.moved
+      this.drag = { ...this.drag, on: false, justDragged: moved }
+      if (!el) return
+      el.style.scrollSnapType = ''
+      if (moved) {
+        // 가까운 칸에 부드럽게 맞춤
+        const w = this.colWidth()
+        el.scrollTo({ left: Math.round(el.scrollLeft / w) * w, behavior: 'smooth' })
+      }
+    },
+    /** 끌고 난 직후의 클릭은 '그달 선택'으로 치지 않음 */
+    dragClick(e) {
+      if (this.drag.justDragged) { e.stopPropagation(); e.preventDefault(); this.drag.justDragged = false }
+    },
     async step(dir) {
       const i = this.selIndex + dir
       if (i < 0) {
@@ -375,6 +416,12 @@ export default {
   scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 24px; margin-bottom: -22px;
 }
 .plot-scroll::-webkit-scrollbar { display: none; }
+/* 마우스가 있는 기기: 끌 수 있다는 손 모양 */
+@media (hover: hover) and (pointer: fine) {
+  .plot-scroll { cursor: grab; }
+  .plot-scroll .col { cursor: inherit; }
+  .plot-scroll.dragging { cursor: grabbing; user-select: none; }
+}
 /* 막대: 바닥에 붙고 위쪽만 4px 둥글게, 막대 사이는 칸 여백 */
 .plot {
   height: 170px; display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 20px) / 6); gap: 4px;
