@@ -64,6 +64,7 @@ SQL Editor 에서 번호 순서대로 한 번씩:
 6. `supabase/migrations/0006_no_fixed_category.sql`
 7. `supabase/migrations/0007_quick_memo.sql`
 8. `supabase/migrations/0008_refund_follow_category.sql`
+9. `supabase/migrations/0009_delete_account.sql`
 8. (8번을 마친 뒤) `supabase/cron-send-reminders.sql`
 
 ## 8. 폰 푸시 알림 켜기 (0원, 한 번만)

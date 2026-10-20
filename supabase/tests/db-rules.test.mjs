@@ -253,5 +253,21 @@ ok('0006: 지난 기록 분류는 그대로', (await as(A, `select count(*)::int
 await db.exec(`reset role; insert into auth.users values ('33333333-3333-3333-3333-333333333333')`)
 ok('0006 뒤 새로 가입 → 기본 분류 10개', (await as('33333333-3333-3333-3333-333333333333', `select count(*)::int c from categories`)).rows[0].c === 10)
 
+// 0009: 계정을 지우면 모든 기록이 같이 지워짐 (환불 분류 포함)
+try { await as(A, `delete from categories where is_refund`); ok('0009: 평소엔 환불 분류 지우기 막힘', false) } catch (e) { ok('0009: 평소엔 환불 분류 지우기 막힘 → ' + e.message, e.message.includes('환불 분류는 지울 수 없어요')) }
+const tmp9 = (await as(A, `insert into categories (kind, name, color, sort_order) values ('expense','임시9','#E6DDD5',99) returning id`)).rows[0].id
+await as(A, `delete from categories where id=$1`, [tmp9])
+ok('0009: 보통 분류 지우기는 그대로', (await as(A, `select count(*)::int c from categories where id=$1`, [tmp9])).rows[0].c === 0)
+await db.exec(`reset role; delete from auth.users where id='${A}'`)
+const left9 = []
+for (const t of ['categories','payment_methods','transactions','user_settings','quick_entries','recurring_items','budgets','store_aliases','push_subscriptions']) {
+  const c = (await db.query(`select count(*)::int c from ${t} where user_id=$1`, [A])).rows[0].c
+  if (c) left9.push(t + ' ' + c)
+}
+ok('0009: 계정 지우면 9개 표 모두 비워짐 ' + left9.join(','), left9.length === 0)
+ok('0009: 다른 계정 분류는 그대로', (await db.query(`select count(*)::int c from categories where user_id=$1`, [B])).rows[0].c > 0)
+await db.exec(migrations[8])
+ok('0009: 다시 실행해도 괜찮음', true)
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
