@@ -100,6 +100,8 @@ const SKIP = /(잔액|누적|한도|포인트|적립|이용\s?금액|총\s?금�
 // (체크·신용·해외·국내·매입은 따로 떨어진 낱말일 때만: '체크카드 복권 당첨' 은 그대로)
 const META_WORDS = /(일시불|할부\s?\d*\s?(개월)?|승인\s?취소|승인|결제\s?취소|취소|(체크|신용|해외|국내|매입)(?![가-힣])|가승인|\d+개월)/g
 const CANCEL = /(취소|환불|반품)/
+// 내 돈을 옮긴 충전 (충전소 같은 가게 이름은 빼고)
+const CHARGE = /충\s?전(?!\s?소)/
 const TIME = /(?<!\d)\d{1,2}:\d{2}(:\d{2})?(?!\d)/g
 const DATE_ANY = /(\d{2,4}\s*[.\-/년]\s*)?\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?(\s*\([^)]{1,3}\))?/g
 const CARD_NO = /(\d[\d*xX＊-]{11,}\d|[*xX]{4}[\s-]?\d{4})/g
@@ -158,7 +160,8 @@ export function parseCapture(text, today) {
 function captureItems(text, today, needDate) {
   const lines = normalize(text)
   const year = findYear(lines)
-  const all = lines.map((l) => ({ l, amounts: SKIP.test(l) ? [] : findAmounts(l), date: findDate(l, today, year) }))
+  // '카드잔액 자동충전'처럼 충전 줄은 '잔액'이 들어 있어도 기록으로 읽는다 (charge: 화면에서 체크 빼고 보여 줌)
+  const all = lines.map((l) => ({ l, amounts: SKIP.test(l) && !CHARGE.test(l) ? [] : findAmounts(l), date: findDate(l, today, year) }))
   const signed = all.flatMap((x) => x.amounts).filter((a) => a.sign)
   const bankStyle = signed.some((a) => a.sign === '+') || (signed.length >= 2 && signed.length >= all.filter((x) => x.amounts.length).length / 2)
 
@@ -224,7 +227,7 @@ function captureItems(text, today, needDate) {
     else if (a.sign === '-') kind = 'cancel'
     if (CANCEL.test(ctx)) kind = 'cancel'
 
-    const item = { date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}) }
+    const item = { date: noDate ? '' : curDate || today, store, amount: a.value, kind, raw: l, ...(noDate ? { noDate } : {}), ...(CHARGE.test(l) && kind !== 'cancel' ? { charge: true } : {}) }
     items.push(item)
     waiting = item
   }

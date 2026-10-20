@@ -118,7 +118,8 @@
             <span>취소 건이라 빼뒀어요</span>
             <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
           </div>
-          <p v-if="it.kind === 'income' && !it.checked" class="info small-info">입금이라 빼뒀어요</p>
+          <p v-if="it.charge && !it.checked" class="info small-info">잔액 충전이라 빼뒀어요</p>
+          <p v-else-if="it.kind === 'income' && !it.checked" class="info small-info">입금이라 빼뒀어요</p>
         </article>
 
         <div v-if="g.items.length" class="pm">
@@ -337,8 +338,8 @@ export default {
         const raw = f.store
         g.items.push({
           id: ++seq, raw, store: this.aliases[raw] || raw, date: f.date > today ? today : f.date,
-          amount: f.amount, kind: f.kind, memo: f.memo || '',
-          checked: f.kind === 'expense' && !f.noDate, category_id: null, allCats: false, dup: false, match: null
+          amount: f.amount, kind: f.kind, memo: f.memo || '', charge: !!f.charge,
+          checked: f.kind === 'expense' && !f.noDate && !f.charge, category_id: null, allCats: false, dup: false, match: null
         })
       }
       // 이미지 원본은 쓰지 않으므로 바로 버린다 (작은 미리보기만 이 화면에서 잠깐 보여준다)
