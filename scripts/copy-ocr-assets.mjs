@@ -17,7 +17,10 @@ const files = [
   [`${nm}/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js`, `${out}/core/tesseract-core-relaxedsimd-lstm.wasm.js`],
   // 한국어·영어 글자 데이터 (작고 정확한 best_int)
   [`${nm}/@tesseract.js-data/kor/4.0.0_best_int/kor.traineddata.gz`, `${out}/lang/kor.traineddata.gz`],
-  [`${nm}/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz`, `${out}/lang/eng.traineddata.gz`]
+  [`${nm}/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz`, `${out}/lang/eng.traineddata.gz`],
+  // [시험 기능] 이름 더 정확하게 읽기: PaddleOCR 한국어 모델 + 실행 도구 (설정에서 켰을 때만 받음)
+  [`${nm}/@rustors/model-ppocrv5-korean/models/rec.rten`, `${out}/paddle/rec_ko.rten`],
+  [`${nm}/@rustors/model-ppocrv5-korean/models/dict.txt`, `${out}/paddle/dict_ko.txt`]
 ]
 
 let copied = 0
