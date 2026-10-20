@@ -92,9 +92,14 @@
             <div class="names">
               <input v-model="it.store" class="store" type="text" maxlength="50" :aria-label="it.kind === 'income' ? '입금처' : '사용처'" :placeholder="it.kind === 'income' ? '입금처' : '사용처'">
               <span class="sub">
-                <input v-model="it.date" type="date" class="date" aria-label="날짜">
-                <template v-if="it.kind === 'cancel'"> · 결제 취소</template>
-                <template v-else-if="it.kind === 'income'"> · 입금</template>
+                <!-- 날짜: 글자 + 작은 달력 아이콘. 진짜 날짜 칸은 투명하게 위에 덮어 눌러서 고르게 -->
+                <label class="date-btn" :class="{ empty: !it.date }">
+                  <span>{{ dateText(it.date) }}</span>
+                  <AppIcon name="calendar" :size="13" :stroke="2" />
+                  <input v-model="it.date" type="date" class="date-native" aria-label="날짜" @click="openPicker">
+                </label>
+                <span v-if="it.kind === 'cancel'" class="tag tag-cancel">결제 취소</span>
+                <span v-else-if="it.kind === 'income'" class="tag tag-income">입금</span>
               </span>
               <!-- 고친 이름이면 원래 읽은 이름: 날짜 줄은 좁아서 따로 한 줄로 (길면 줄바꿈) -->
               <span v-if="it.raw && it.raw !== it.store" class="raw-name">원래 이름: {{ it.raw }}</span>
@@ -230,6 +235,13 @@ export default {
   },
   methods: {
     won, calcAmount, label, holdLock,
+    /** '10월 12일 (월)', 올해가 아니면 앞에 연도 */
+    dateText(d) {
+      if (!d) return '날짜 고르기'
+      return (d.slice(0, 4) !== todayKST().slice(0, 4) ? `${d.slice(0, 4)}년 ` : '') + label(d)
+    },
+    /** PC 에서도 눌렀을 때 달력이 바로 뜨게 (폰은 원래 뜸) */
+    openPicker(e) { try { e.target.showPicker?.() } catch { /* 지원 안 하면 그대로 */ } },
     /** 전체 선택에 들어가는 줄 (결제 취소 줄은 체크할 수 없어서 뺌) */
     pickable(g) { return g.items.filter((it) => it.kind !== 'cancel') },
     allOn(g) { const xs = this.pickable(g); return xs.length > 0 && xs.every((it) => it.checked) },
@@ -486,17 +498,26 @@ export default {
 .gh-text { display: flex; flex-direction: column; gap: 2px; }
 .all-check { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-sub); cursor: pointer; flex-shrink: 0; white-space: nowrap; }
 
-.item { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.item { padding: 14px 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
 .item.off { opacity: 0.72; }
-.row1 { display: flex; align-items: center; gap: 10px; }
-.check { width: 22px; height: 22px; accent-color: #C96A55; flex-shrink: 0; }
+.row1 { display: flex; align-items: flex-start; gap: 10px; }
+.check { width: 22px; height: 22px; margin: 3px 0 0; accent-color: #C96A55; flex-shrink: 0; }
+/* 분류 버튼·안내는 체크 칸 오른쪽(이름 줄)에 맞춰 시작 */
+.item > :not(.row1) { margin-left: 32px; }
 .names { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .store { border: 0; border-bottom: 1px dashed transparent; background: transparent; font-size: 16px; font-weight: 700; padding: 2px 0; color: var(--text); min-width: 0; }
 .store:focus { outline: none; border-bottom-color: var(--accent); }
-.sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; min-height: 22px; }
+.sign { margin-right: -1px; }
+.tag { flex-shrink: 0; padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 600; }
+.tag-income { background: var(--info-bg); color: var(--info-fg); }
+.tag-cancel { background: var(--surface-sunken); color: var(--text-sub); }
 .raw-name { font-size: 11.5px; line-height: 16px; color: var(--text-faint); overflow-wrap: anywhere; }
-.date { border: 0; background: transparent; font-size: 12px; color: var(--text-sub); padding: 0; width: 112px; }
-.amt { display: flex; align-items: center; justify-content: flex-end; gap: 1px; width: 104px; flex-shrink: 0; font-weight: 700; font-size: 16px; }
+.date-btn { position: relative; display: inline-flex; align-items: center; gap: 4px; color: var(--text-sub); cursor: pointer; }
+.date-btn.empty { color: var(--expense); font-weight: 600; }
+.date-btn svg { opacity: 0.6; flex-shrink: 0; }
+.date-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; cursor: pointer; }
+.amt { display: flex; align-items: center; justify-content: flex-end; gap: 1px; width: 104px; min-height: 28px; flex-shrink: 0; font-weight: 700; font-size: 16px; }
 .amt input { width: 92px; border: 0; background: transparent; font-size: 16px; font-weight: 700; text-align: right; color: var(--text); padding: 2px 0; }
 /* 칸 너비를 숫자 길이에 맞춰 +/- 가 숫자 바로 앞에 붙게 (지원 안 하는 브라우저는 예전처럼 92px) */
 @supports (field-sizing: content) {
