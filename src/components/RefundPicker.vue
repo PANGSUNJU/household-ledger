@@ -60,7 +60,7 @@
     <template v-else>
       <p class="note">돌려받은 돈을 뺄 지출 분류를 골라 주세요</p>
       <CategoryGrid
-        :categories="expenseCategories" :model-value="manualCategoryId" label="빼는 지출 분류"
+        :categories="refundCategories" :model-value="manualCategoryId" label="빼는 지출 분류"
         @update:model-value="$emit('update:manualCategoryId', $event)"
       />
     </template>
@@ -97,6 +97,8 @@ export default {
     }
   },
   computed: {
+    /** 직접 고르기: 저축/투자 분류는 빼고 */
+    refundCategories() { return this.expenseCategories.filter((c) => !c.is_savings) },
     filtered() {
       // 빈칸은 빼고 비교 ('이마트 경산점' 으로 찾아도 '이마트경산점' 이 나오게)
       const flat = (v) => (v || '').replace(/[,\s원]/g, '').toLowerCase()
@@ -144,7 +146,8 @@ export default {
     async load() {
       this.loading = true; this.error = ''
       try {
-        this.items = await recentExpenses(addDays(todayKST(), -90))
+        // 저축/투자는 환불이 없으니 목록에서 뺀다
+        this.items = (await recentExpenses(addDays(todayKST(), -90))).filter((t) => !t.category?.is_savings)
       } catch (e) {
         this.error = '최근 지출을 불러오지 못했어요.'
         console.error(e)
