@@ -29,7 +29,9 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   // 아래 메뉴 화면(기억해 두는 화면)은 보던 스크롤 위치로, 나머지는 맨 위로
+  // 설정은 어디서 돌아오든(뒤로 가기 포함) 항상 맨 위
   scrollBehavior(to, from, saved) {
+    if (to.name === 'settings') return { top: 0 }
     if (saved) return saved
     if (to.meta.nav && scrollMemo.has(to.name)) return { top: scrollMemo.get(to.name) }
     return { top: 0 }
