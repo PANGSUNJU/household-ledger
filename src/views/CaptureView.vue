@@ -353,7 +353,8 @@ export default {
         g.items.push({
           id: ++seq, raw, store: this.aliases[raw] || raw, date: f.date > today ? today : f.date,
           amount: f.amount, kind: f.kind, memo: f.memo || '', charge: !!f.charge, fixed: f.fixed || '',
-          checked: f.kind === 'expense' && !f.noDate && !f.charge, category_id: null, allCats: false, dup: false, match: null
+          // 지출·입금은 체크, 잔액 충전·취소·날짜 모름은 빼둠
+          checked: (f.kind === 'expense' || f.kind === 'income') && !f.noDate && !f.charge, category_id: null, allCats: false, dup: false, match: null
         })
       }
       // 이미지 원본은 쓰지 않으므로 바로 버린다 (작은 미리보기만 이 화면에서 잠깐 보여준다)
