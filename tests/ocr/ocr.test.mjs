@@ -79,6 +79,26 @@ ok('아래 날짜: 한 칸씩 밀리지 않음 (메가커피 10/15, 국밥 10/11
 ok('아래 날짜: 날짜 줄 밑의 승인취소도 알아봄', db.some((x) => x.store.startsWith('가나다상회') && x.date === '2026-10-13' && x.kind === 'cancel'), show(db))
 ok('아래 날짜: 취소 아닌 건은 지출', db.filter((x) => x.kind === 'expense').length === 5, show(db))
 
+// 잔액 자동충전 줄 (토스 카드 화면 글자 그대로, 가짜 가게): 숨기지 않고 charge 로 표시
+const ch = parseCapture(`10월 12일
+체크카드 복권 당첨 +13원
+18:48 5,213원
+가나다버거 경산점 -7,200원
+18:48 5,200원
+w 카드잔액자동충전 +10,000원
+18:48 12,400원
+9월교통카드이용 -8,100원
+16:17 2,400원
+| 카드잔액자동충전 +30,496원
+12:05 40,000원
+현대오일 전기차충전소 -12,000원
+12:00 10,000원`, '2026-10-20')
+ok('충전: 6건 모두 보임 (잔액 줄은 여전히 뺌)', ch.length === 6, show(ch))
+ok('충전: 자동충전 2건은 charge 표시', ch.filter((x) => x.charge).map((x) => x.amount).join() === '10000,30496', show(ch))
+ok('충전: 이름은 카드잔액자동충전', ch.filter((x) => x.charge).every((x) => /카드잔액\s?자동충전/.test(x.store)), show(ch))
+ok('충전: 충전소는 보통 지출', ch.some((x) => /충전소/.test(x.store) && x.kind === 'expense' && !x.charge), show(ch))
+ok('충전: 다른 건은 charge 아님', ch.filter((x) => !x.charge).length === 4, show(ch))
+
 // 5. 분류 짐작
 ok('분류 짐작: 메가커피 → 카페·간식', guessCategoryName('메가커피 경산중앙점') === '카페·간식')
 ok('분류 짐작: 다이소 → 생활용품', guessCategoryName('(주)아성다이소 경산점') === '생활용품')
