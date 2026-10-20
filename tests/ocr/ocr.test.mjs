@@ -99,6 +99,16 @@ ok('충전: 이름은 카드잔액자동충전', ch.filter((x) => x.charge).ever
 ok('충전: 충전소는 보통 지출', ch.some((x) => /충전소/.test(x.store) && x.kind === 'expense' && !x.charge), show(ch))
 ok('충전: 다른 건은 charge 아님', ch.filter((x) => !x.charge).length === 4, show(ch))
 
+// 금액 맨 앞 7 이 / 로 읽힌 경우, 이름 끝 찌꺼기 '_' (실제 토스 캡처에서 나온 모양, 가짜 가게)
+const sl = parseCapture(`10월 12일
+가나다버거(유)경산점 _ -/200원
+18:48 5,200원
+9월교통카드이용 -8,100원
+16:17 2,400원`, '2026-10-20')
+ok("'/200원' → 7,200원", sl[0]?.amount === 7200 && sl[0]?.kind === 'expense', show(sl))
+ok("이름 끝 '_' 지움", sl[0]?.store === '가나다버거(유)경산점', show(sl))
+ok('날짜 10/12 는 그대로 날짜', sl.every((x) => x.date === '2026-10-12'), show(sl))
+
 // 5. 분류 짐작
 ok('분류 짐작: 메가커피 → 카페·간식', guessCategoryName('메가커피 경산중앙점') === '카페·간식')
 ok('분류 짐작: 다이소 → 생활용품', guessCategoryName('(주)아성다이소 경산점') === '생활용품')
