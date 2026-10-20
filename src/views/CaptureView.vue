@@ -48,6 +48,7 @@
       </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
+      <p v-if="restored && groups.length" class="info small-info restored">앱이 다시 열려서 아까 읽은 내용을 불러왔어요</p>
       <!-- 3. 읽은 결과 -->
       <template v-for="(g, gi) in groups" :key="g.id">
         <section class="group-head">
@@ -181,6 +182,38 @@ import { won, calcAmount, MAX_AMOUNT } from '@/lib/money'
 
 let seq = 0
 
+/*
+ * 읽은 결과 잠깐 저장 (폰이 메모리가 부족해 앱을 지웠다 다시 열면 되살리려고)
+ *  · 이름·금액·날짜·체크·분류와 작은 미리보기만. 이미지 원본은 저장하지 않는다
+ *  · 저장하거나 이 화면을 나가면 지우고, 30분이 지나면 쓰지 않고 지운다
+ */
+const DRAFT_KEY = 'ledger.captureDraft'
+const DRAFT_MAX_MS = 30 * 60 * 1000
+function readDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
+    if (d && Date.now() - d.savedAt < DRAFT_MAX_MS && Array.isArray(d.groups) && d.groups.length) return d
+  } catch { /* 깨졌거나 못 읽음 */ }
+  clearDraft()
+  return null
+}
+function writeDraft(mode, groups) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 1, savedAt: Date.now(), mode, groups })) } catch { /* 공간 부족 등: 되살리기만 못 함 */ }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY) } catch { /* 무시 */ }
+}
+
+/** 목록 왼쪽 작은 미리보기 (저장해 둘 수 있게 작은 그림 글자로) */
+async function smallThumb(file) {
+  const bmp = await createImageBitmap(file)
+  const w = 112, h = Math.round(Math.min(bmp.height, bmp.width * (144 / 112)) * (w / bmp.width))
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  c.getContext('2d').drawImage(bmp, 0, 0, bmp.width, h * (bmp.width / w), 0, 0, w, h)
+  bmp.close?.()
+  return c.toDataURL('image/jpeg', 0.7)
+}
+
 /** '읽기 전에 영역 자르기' 선택 기억 (처음엔 켜짐) */
 function readCropOpt() {
   try { return localStorage.getItem('ledger.askCrop') !== '0' } catch { return true }
@@ -204,7 +237,7 @@ export default {
       groups: [], categories: [], methods: [], aliases: {}, defaultPm: null,
       reading: false, readingText: '', firstLoad: true, error: '',
       saving: false, saveError: '', MAX_AMOUNT,
-      askCrop: readCropOpt(), cropping: null
+      askCrop: readCropOpt(), cropping: null, restored: false
     }
   },
   computed: {
@@ -215,6 +248,16 @@ export default {
     }
   },
   async created() {
+    // 앱이 지워졌다 다시 열린 경우: 아까 읽은 결과 되살리기 (공유로 새로 들어온 때는 빼고)
+    if (!this.$route.query.shared) {
+      const d = readDraft()
+      if (d) {
+        this.mode = d.mode === 'receipt' ? 'receipt' : 'capture'
+        this.groups = d.groups
+        seq = Math.max(seq, ...d.groups.flatMap((g) => [g.id, ...g.items.map((it) => it.id)]))
+        this.restored = true
+      }
+    }
     try {
       const [c, m, a, last] = await Promise.all([
         listCategories(), listPaymentMethods(), listStoreAliases(), lastPaymentMethodId().catch(() => null)
@@ -228,13 +271,27 @@ export default {
     try { this.firstLoad = !localStorage.getItem('ledger.ocrReady') } catch { /* 저장 못 함 */ }
     if (this.$route.query.shared) await this.takeShared()
   },
+  watch: {
+    groups: { deep: true, handler() { clearTimeout(this.draftTimer); this.draftTimer = setTimeout(this.saveDraftNow, 400) } }
+  },
+  mounted() {
+    document.addEventListener('visibilitychange', this.saveDraftNow)
+  },
   beforeUnmount() {
+    document.removeEventListener('visibilitychange', this.saveDraftNow)
+    clearTimeout(this.draftTimer)
+    clearDraft()   // 화면을 나가면(저장 포함) 지운다. 앱이 지워질 때는 여기까지 오지 않아 남는다
     if (this.cropping) { URL.revokeObjectURL(this.cropping.url); this.cropping.resolve('skip') }
-    for (const g of this.groups) if (g.thumb) URL.revokeObjectURL(g.thumb)
+    for (const g of this.groups) if (g.thumb?.startsWith('blob:')) URL.revokeObjectURL(g.thumb)
     closeReader()
   },
   methods: {
     won, calcAmount, label, holdLock,
+    /** 지금 읽은 결과를 잠깐 저장 (없으면 지움) */
+    saveDraftNow() {
+      if (this.groups.length) writeDraft(this.mode, this.groups)
+      else clearDraft()
+    },
     /** '10월 12일 (월)', 올해가 아니면 앞에 연도 */
     dateText(d) {
       if (!d) return '날짜 고르기'
@@ -347,9 +404,10 @@ export default {
     async addGroup(file, text) {
       const today = todayKST()
       const g = {
-        id: ++seq, mode: this.mode, thumb: URL.createObjectURL(file), items: [], receipt: null, matches: [],
+        id: ++seq, mode: this.mode, thumb: '', items: [], receipt: null, matches: [],
         payment_method_id: this.guessPm(text) || this.defaultPm
       }
+      try { g.thumb = await smallThumb(file) } catch { g.thumb = '' }
       let found = []
       if (this.mode === 'capture') {
         found = parseCapture(text, today)

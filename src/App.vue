@@ -24,6 +24,14 @@ import { lock, initLock, resetLock } from './lib/lock'
 import { recurringState, runRecurring, resetRecurring } from './lib/recurring'
 import { clearCache } from './lib/sync'
 
+/** 캡처 화면이 잠깐 저장해 둔 읽은 결과: 30분 지났으면(로그아웃이면 바로) 지운다 */
+function dropOldCaptureDraft(all = false) {
+  try {
+    const d = JSON.parse(localStorage.getItem('ledger.captureDraft') || 'null')
+    if (d && (all || !(Date.now() - d.savedAt < 30 * 60 * 1000))) localStorage.removeItem('ledger.captureDraft')
+  } catch { try { localStorage.removeItem('ledger.captureDraft') } catch { /* 무시 */ } }
+}
+
 export default {
   name: 'App',
   components: { BottomNav, OfflineScreen, LockScreen },
@@ -46,6 +54,7 @@ export default {
           resetLock()
           resetRecurring()
           clearCache()
+          dropOldCaptureDraft(true)
           // 로그아웃되면 로그인 화면으로
           if (before && !this.$route.meta.public) this.$router.replace({ name: 'login' })
         }
@@ -53,6 +62,7 @@ export default {
     }
   },
   mounted() {
+    dropOldCaptureDraft()
     window.addEventListener('online', this.checkOnline)
     window.addEventListener('offline', this.checkOnline)
     document.addEventListener('visibilitychange', this.onVisible)
