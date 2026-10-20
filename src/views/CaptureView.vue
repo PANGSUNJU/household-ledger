@@ -93,10 +93,11 @@
               <input v-model="it.store" class="store" type="text" maxlength="50" :aria-label="it.kind === 'income' ? '입금처' : '사용처'" :placeholder="it.kind === 'income' ? '입금처' : '사용처'">
               <span class="sub">
                 <input v-model="it.date" type="date" class="date" aria-label="날짜">
-                <template v-if="it.raw && it.raw !== it.store"> · 원래 이름: {{ it.raw }}</template>
                 <template v-if="it.kind === 'cancel'"> · 결제 취소</template>
                 <template v-else-if="it.kind === 'income'"> · 입금</template>
               </span>
+              <!-- 고친 이름이면 원래 읽은 이름: 날짜 줄은 좁아서 따로 한 줄로 (길면 줄바꿈) -->
+              <span v-if="it.raw && it.raw !== it.store" class="raw-name">원래 이름: {{ it.raw }}</span>
             </div>
             <label class="amt">
               <span class="sr-only">금액</span>
@@ -493,6 +494,7 @@ export default {
 .store { border: 0; border-bottom: 1px dashed transparent; background: transparent; font-size: 16px; font-weight: 700; padding: 2px 0; color: var(--text); min-width: 0; }
 .store:focus { outline: none; border-bottom-color: var(--accent); }
 .sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.raw-name { font-size: 11.5px; line-height: 16px; color: var(--text-faint); overflow-wrap: anywhere; }
 .date { border: 0; background: transparent; font-size: 12px; color: var(--text-sub); padding: 0; width: 112px; }
 .amt { display: flex; align-items: center; font-weight: 700; font-size: 16px; }
 .amt input { width: 92px; border: 0; background: transparent; font-size: 16px; font-weight: 700; text-align: right; color: var(--text); padding: 2px 0; }
