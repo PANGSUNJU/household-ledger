@@ -37,7 +37,7 @@
       <!-- 금액 입력 필요 모아보기 -->
       <section v-if="needs.length" class="card needs" aria-label="금액을 넣어야 하는 기록">
         <h2>금액을 넣어 주세요 <span class="count">{{ needs.length }}건</span></h2>
-        <TxRow v-for="t in needs" :key="t.id" :tx="t" class="need-row" />
+        <TxRow v-for="t in needs" :key="t.id" :tx="t" :fixed-tag="false" class="need-row" />
       </section>
 
       <template v-for="group in groups" :key="group.kind">

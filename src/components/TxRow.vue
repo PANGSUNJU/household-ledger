@@ -2,7 +2,11 @@
   <router-link :to="'/entry/' + tx.id" class="tx">
     <CatTile :name="tx.category?.name || '미분류'" :color="tileColor" />
     <span class="main">
-      <span class="name">{{ tx.store_name || tx.category?.name || (tx.kind === 'income' ? '수입' : '지출') }}</span>
+      <span class="name-line">
+        <span class="name">{{ tx.store_name || tx.category?.name || (tx.kind === 'income' ? '수입' : '지출') }}</span>
+        <!-- 고정 수입·지출에서 자동으로 들어온 기록 -->
+        <span v-if="fixedTag && tx.source === 'recurring'" class="fixed-tag">고정</span>
+      </span>
       <!-- 분류는 화면 읽기 프로그램용으로만 (눈으로는 왼쪽 네모) -->
       <span class="sr-only">{{ tx.category?.name || '미분류' }}</span>
       <span v-if="subText" class="sub">{{ subText }}</span>
@@ -26,7 +30,9 @@ export default {
   props: {
     tx: { type: Object, required: true },
     /** 환불 수수료 표시용: 원래 구매 금액 (없으면 생략) */
-    originalAmount: { type: Number, default: null }
+    originalAmount: { type: Number, default: null },
+    /** '고정' 이름표 (고정 항목 화면처럼 다 고정인 곳에서는 끔) */
+    fixedTag: { type: Boolean, default: true }
   },
   computed: {
     isRefund() { return this.tx.kind === 'income' && this.tx.category?.is_refund },
@@ -53,7 +59,10 @@ export default {
 <style scoped>
 .tx { display: flex; align-items: center; gap: 12px; padding: 9px 0; color: var(--text); text-decoration: none; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.name-line { display: block; min-width: 0; }
 .name { font-size: 15px; font-weight: 500; }
+/* 이름 글자 바로 뒤에 붙어서, 이름이 길어 줄이 바뀌어도 마지막 글자 옆에 */
+.fixed-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #E9E3FA; color: #4A3D78; font-size: 11px; line-height: 17px; font-weight: 600; vertical-align: 2px; white-space: nowrap; }
 .sub {
   font-size: 12px; line-height: 16px; color: var(--text-sub); white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
