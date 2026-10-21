@@ -271,6 +271,10 @@ export default {
     this.push.on = !!sub
     this.push.device = this.deviceLabel()
   },
+  watch: {
+    // 앱: 알림이 허용되면 예전 '허용되지 않았어요' 안내는 지운다
+    'appNotify.perm'(p) { if (p === 'granted') this.appNotifyMsg = '' }
+  },
   activated() {
     if (this.native) refreshPermission().catch(() => {})
   },
@@ -298,7 +302,8 @@ export default {
       try {
         const p = await Promise.race([askPermission(), new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000))])
         this.appNotifyMsg = p === 'granted' ? '알림을 허용했어요.'
-          : '허용되지 않았어요. 창이 안 떴다면 \'폰 알림 설정 열기\'에서 직접 켜 주세요.'
+          : p === 'timeout' ? '폰이 알림 허용 창에 응답하지 않았어요. \'폰 알림 설정 열기\'에서 직접 켜 주세요.'
+            : '허용되지 않았어요. 창이 안 떴다면 \'폰 알림 설정 열기\'에서 직접 켜 주세요.'
         await rescheduleAll()
       } catch (e) {
         this.appNotifyMsg = '알림 허용을 묻지 못했어요: ' + String(e?.message || e).slice(0, 80)
@@ -309,7 +314,8 @@ export default {
     async tryAsk() {
       try {
         const p = await Promise.race([askPermission(), new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000))])
-        if (p !== 'granted') this.appNotifyMsg = '알림이 아직 허용되지 않았어요. \'폰 알림 설정 열기\'에서 켜 주세요.'
+        if (p === 'timeout') this.appNotifyMsg = '폰이 알림 허용 창에 응답하지 않았어요. \'폰 알림 설정 열기\'에서 켜 주세요.'
+        else if (p !== 'granted') this.appNotifyMsg = '알림이 아직 허용되지 않았어요. \'폰 알림 설정 열기\'에서 켜 주세요.'
       } catch (e) {
         this.appNotifyMsg = '알림 허용을 묻지 못했어요: ' + String(e?.message || e).slice(0, 80)
       }
