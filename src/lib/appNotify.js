@@ -6,6 +6,7 @@
  *  · 웹(브라우저)에서는 아무것도 하지 않는다
  */
 import { reactive } from 'vue'
+import { registerPlugin } from '@capacitor/core'
 import { isNative } from './native'
 import { listRecurringItems, getRemindSettings } from './api'
 import { occurrencesBetween } from './recurring'
@@ -15,8 +16,12 @@ import { planRecurring, planWeekly, RECURRING_DAYS } from './appNotify-plan'
 const REC_KEY = 'ledger.notifyRecurring'
 const CHANNEL = 'ledger'
 
+// 우리 앱 전용 네이티브 기능 (android/.../AppSettingsPlugin.java)
+const AppSettings = registerPlugin('AppSettings')
+
 export const appNotify = reactive({
   perm: 'unknown',     // 'granted' | 'denied' | 'prompt' | 'unknown'
+  rawPerm: '',         // 폰이 알려 준 그대로 (prompt-with-rationale 등) — 화면에 표시해 원인 찾기
   recurringOn: readRecurringOn(),
   count: 0,            // 지금 예약된 알림 수
   lastError: ''
@@ -32,18 +37,30 @@ async function plugin() {
   return LN
 }
 
-export async function refreshPermission() {
-  if (!isNative()) return 'unknown'
-  const p = await (await plugin()).checkPermissions()
-  appNotify.perm = p.display === 'granted' ? 'granted' : p.display === 'denied' ? 'denied' : 'prompt'
+function setPerm(display) {
+  appNotify.rawPerm = String(display || '')
+  appNotify.perm = display === 'granted' ? 'granted' : display === 'denied' ? 'denied' : 'prompt'
   return appNotify.perm
 }
 
+export async function refreshPermission() {
+  if (!isNative()) return 'unknown'
+  try { return setPerm((await (await plugin()).checkPermissions()).display) } catch (e) {
+    appNotify.lastError = '알림 상태 확인 실패: ' + String(e?.message || e).slice(0, 80)
+    return appNotify.perm
+  }
+}
+
+/** 알림 허용 묻기 (한 번 거절하면 안드로이드가 다시 묻지 않음 → 폰 설정에서 켜야 함) */
 export async function askPermission() {
   if (!isNative()) return 'unknown'
   const p = await (await plugin()).requestPermissions()
-  appNotify.perm = p.display === 'granted' ? 'granted' : p.display === 'denied' ? 'denied' : 'prompt'
-  return appNotify.perm
+  return setPerm(p.display)
+}
+
+/** 폰의 '가계부 앱 알림 설정' 화면 열기 */
+export async function openNotifySettings() {
+  await AppSettings.openNotifications()
 }
 
 let started = false
@@ -101,7 +118,9 @@ async function doReschedule() {
         notifications: list.map((n) => ({
           id: n.id, title: n.title, body: n.body, extra: n.extra, channelId: CHANNEL,
           smallIcon: 'ic_stat_notify', iconColor: '#E8806A',
-          schedule: { at: n.at, allowWhileIdle: true }
+          schedule: { at: n.at, allowWhileIdle: true },
+          // 정확한 시각 알람은 안드로이드가 따로 허락(알람 및 리마인더)을 요구해서, 몇 분 늦어도 되는 일반 알람으로
+          isExactNotification: false
         }))
       })
     }
@@ -126,7 +145,8 @@ export async function sendTestNotify() {
     notifications: [{
       id: 999, title: '시험 알림이에요', body: '앱 알림이 잘 와요!', channelId: CHANNEL,
       smallIcon: 'ic_stat_notify', iconColor: '#E8806A', extra: { url: '/settings' },
-      schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true }
+      schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true },
+      isExactNotification: false
     }]
   })
 }
