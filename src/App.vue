@@ -22,7 +22,8 @@ import LockScreen from './components/LockScreen.vue'
 import { auth } from './lib/auth'
 import { lock, initLock, resetLock } from './lib/lock'
 import { recurringState, runRecurring, resetRecurring } from './lib/recurring'
-import { clearCache } from './lib/sync'
+import { clearCache, dataState } from './lib/sync'
+import { isNative } from './lib/native'
 
 /** 캡처 화면이 잠깐 저장해 둔 읽은 결과: 30분 지났으면(로그아웃이면 바로) 지운다 */
 function dropOldCaptureDraft(all = false) {
@@ -41,19 +42,29 @@ export default {
   computed: {
     auth() { return auth },
     lock() { return lock },
-    rec() { return recurringState }
+    rec() { return recurringState },
+    dataState() { return dataState }
   },
   watch: {
+    // 앱: 고정 항목 등을 저장·삭제하면 알림 예약 다시 맞추기 (3초 모아서)
+    'dataState.version'() {
+      if (!isNative() || !auth.user) return
+      clearTimeout(this.notifyTimer)
+      this.notifyTimer = setTimeout(() => import('./lib/appNotify').then((m) => m.rescheduleAll()).catch(() => {}), 3000)
+    },
     'auth.user': {
       immediate: true,
       handler(user, before) {
         if (user && !before) {
           initLock()
           runRecurring()
+          // 안드로이드 앱: 폰 안 알림 예약 (웹에서는 아무것도 안 함)
+          if (isNative()) import('./lib/appNotify').then((m) => m.initAppNotify(this.$router)).catch((e) => console.warn(e))
         } else if (!user) {
           resetLock()
           resetRecurring()
           clearCache()
+          if (isNative()) import('./lib/appNotify').then((m) => m.cancelAllNotify()).catch(() => {})
           dropOldCaptureDraft(true)
           // 로그아웃되면 로그인 화면으로
           if (before && !this.$route.meta.public) this.$router.replace({ name: 'login' })
@@ -76,7 +87,14 @@ export default {
     checkOnline() { this.online = navigator.onLine },
     /* 앱을 켜 둔 채 날짜가 바뀌었으면 다시 앱으로 왔을 때 그날 고정 항목을 기록한다 (하루 한 번) */
     onVisible() {
-      if (document.visibilityState === 'visible' && auth.user) runRecurring()
+      if (document.visibilityState === 'visible' && auth.user) {
+        runRecurring()
+        // 앱: 돌아올 때 알림 예약 다시 맞추기 (1시간에 한 번까지)
+        if (isNative() && Date.now() - (this.notifyAt || 0) > 3600000) {
+          this.notifyAt = Date.now()
+          import('./lib/appNotify').then((m) => m.rescheduleAll()).catch(() => {})
+        }
+      }
     }
   }
 }
