@@ -123,9 +123,15 @@
               <button type="button" class="mini-btn" @click="testAppNotify">시험 알림 보내기</button>
             </div>
           </template>
-          <p v-else-if="appNotify.perm === 'denied'" class="muted small">알림이 막혀 있어요. 폰 설정 → 애플리케이션 → 가계부 앱 → 알림에서 허용해 주세요.</p>
-          <button v-else type="button" class="btn-push" @click="allowAppNotify">알림 허용하기</button>
+          <template v-else>
+            <p class="muted small">
+              {{ appNotify.perm === 'denied' ? '알림이 꺼져 있어요. 아래 버튼으로 폰 설정을 열어 \'알림 허용\'을 켜 주세요.' : '알림을 받으려면 허용이 필요해요.' }}
+            </p>
+            <button v-if="appNotify.perm !== 'denied'" type="button" class="btn-push" @click="allowAppNotify">알림 허용하기</button>
+            <button type="button" class="mini-btn" @click="openPhoneNotify">폰 알림 설정 열기</button>
+          </template>
           <p v-if="appNotifyMsg" class="small" role="status">{{ appNotifyMsg }}</p>
+          <p class="tiny-state">상태: {{ appNotify.rawPerm || '확인 중' }} · 예약 {{ appNotify.count }}개</p>
           <p v-if="appNotify.lastError" class="small lock-error" role="alert">알림을 예약하지 못했어요 ({{ appNotify.lastError }})</p>
         </div>
       </template>
@@ -192,7 +198,7 @@
 <script>
 import { nameBoostOn, setNameBoost } from '@/lib/labs'
 import { isNative } from '@/lib/native'
-import { appNotify, askPermission, setRecurringOn, sendTestNotify, rescheduleAll, refreshPermission } from '@/lib/appNotify'
+import { appNotify, askPermission, setRecurringOn, sendTestNotify, rescheduleAll, refreshPermission, openNotifySettings } from '@/lib/appNotify'
 import AppIcon from '@/components/AppIcon.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import PinPad from '@/components/PinPad.vue'
@@ -256,7 +262,11 @@ export default {
     const r = await getRemindSettings()
     if (r) this.remind = r
     else this.remindMissing = true
-    if (this.native) { refreshPermission().catch(() => {}); return }   // 앱: 브라우저 푸시는 안 씀
+    if (this.native) {   // 앱: 브라우저 푸시는 안 씀
+      refreshPermission().catch(() => {})
+      document.addEventListener('visibilitychange', this.onBackFromPhone)
+      return
+    }
     const sub = await currentSubscription()
     this.push.on = !!sub
     this.push.device = this.deviceLabel()
@@ -284,12 +294,31 @@ export default {
       await setRecurringOn(on)
     },
     async allowAppNotify() {
-      const p = await askPermission()
-      this.appNotifyMsg = p === 'granted' ? '알림을 허용했어요.' : '알림을 허용하지 않았어요.'
-      await rescheduleAll()
+      this.appNotifyMsg = '확인 중…'
+      try {
+        const p = await askPermission()
+        this.appNotifyMsg = p === 'granted' ? '알림을 허용했어요.'
+          : '허용되지 않았어요. 창이 안 떴다면 \'폰 알림 설정 열기\'에서 직접 켜 주세요.'
+        await rescheduleAll()
+      } catch (e) {
+        this.appNotifyMsg = '알림 허용을 묻지 못했어요: ' + String(e?.message || e).slice(0, 80)
+        console.error(e)
+      }
+    },
+    async openPhoneNotify() {
+      try { await openNotifySettings(); this.appNotifyMsg = '켜고 돌아오면 여기 상태가 바뀌어요.' } catch (e) {
+        this.appNotifyMsg = '설정을 열지 못했어요: ' + String(e?.message || e).slice(0, 80) + ' — 폰 설정 → 애플리케이션 → 가계부 앱 → 알림'
+      }
     },
     async testAppNotify() {
-      try { await sendTestNotify(); this.appNotifyMsg = '5초 뒤에 시험 알림이 와요.' } catch (e) { this.appNotifyMsg = '보내지 못했어요.'; console.error(e) }
+      try { await sendTestNotify(); this.appNotifyMsg = '5초 뒤에 시험 알림이 와요.' } catch (e) {
+        this.appNotifyMsg = '보내지 못했어요: ' + String(e?.message || e).slice(0, 80)
+        console.error(e)
+      }
+    },
+    /** 폰 설정에 다녀오면 알림 상태 다시 확인 + 예약 다시 */
+    onBackFromPhone() {
+      if (document.visibilityState === 'visible' && this.native) refreshPermission().then(() => rescheduleAll()).catch(() => {})
     },
     toggleNameBoost() {
       this.nameBoost = !this.nameBoost
@@ -448,6 +477,7 @@ export default {
 .logout { border: 0; background: transparent; text-align: left; color: var(--expense); width: 100%; }
 .two-line { display: flex; flex-direction: column; }
 .native-notify { flex-direction: column; align-items: stretch; gap: 8px; }
+.tiny-state { margin: 0; font-size: 11px; color: var(--text-faint); }
 .switch { position: relative; width: 52px; height: 32px; flex-shrink: 0; border: 0; border-radius: 16px; background: var(--border); transition: background 0.15s; }
 .switch.on { background: #E8806A; }
 .switch .knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 13px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(120, 90, 70, 0.25); transition: left 0.15s; }
