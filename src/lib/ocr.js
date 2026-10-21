@@ -136,8 +136,9 @@ export async function readImage(file, onProgress, crop = null) {
  *  · 안드로이드 앱: 구글 ML Kit (한국어) — 빠르고 한글·영어 섞인 이름에 강함. 실패하면 tesseract 로
  *  · 웹: tesseract (지금 그대로)
  */
-export async function readImageInfo(file, onProgress, crop = null) {
-  if (isNative()) {
+export async function readImageInfo(file, onProgress, crop = null, opts = {}) {
+  // opts.tesseract: 앱에서 ML Kit 결과로 기록을 못 찾았을 때 예전 방식으로 다시 읽기
+  if (isNative() && !opts.tesseract) {
     try {
       const { mlkitRead } = await import('./ocr-mlkit')
       const pieces = await prepare(file, crop)
@@ -147,7 +148,9 @@ export async function readImageInfo(file, onProgress, crop = null) {
         texts.push(await mlkitRead(pieces[k]))
         pieces[k].width = pieces[k].height = 0
       }
-      return { text: texts.join('\n'), engine: 'ML Kit' }
+      const text = texts.join('\n')
+      if (!text.trim()) throw new Error('글자 없음')
+      return { text, engine: 'ML Kit' }
     } catch (e) {
       console.warn('ML Kit 실패 → tesseract 로', e)
       return { text: await readTesseract(file, onProgress, crop), engine: 'tesseract (ML Kit 실패: ' + String(e?.message || e).slice(0, 40) + ')' }

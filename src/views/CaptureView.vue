@@ -57,6 +57,11 @@
             <strong>{{ g.mode === 'capture' ? `카드·은행 앱 캡처 ${gi + 1}` : '영수증' }}</strong>
             <span class="muted small">{{ g.items.length ? `${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
             <span v-if="g.sec" class="muted small read-time">읽는 데 {{ g.sec }}초{{ g.engine ? ` · ${g.engine}` : '' }}</span>
+            <!-- 앱: ML Kit 가 읽은 글자 (기록을 못 찾아 다시 읽었을 때, 원인 확인용) -->
+            <details v-if="g.mlkitText" class="mlkit-raw">
+              <summary class="muted small">ML Kit 가 읽은 글자 보기</summary>
+              <pre>{{ g.mlkitText }}</pre>
+            </details>
           </div>
           <!-- 전체 선택: 결제 취소 줄은 빼고 이 캡처의 모든 줄 (입금·충전 포함) -->
           <label v-if="pickable(g).length > 1" class="all-check">
@@ -385,16 +390,26 @@ export default {
           }
           this.readingText = `${tag}읽을 준비 중…`
           const t0 = performance.now()
-          const read = await readImageInfo(files[i], ({ stage, pct }) => {
+          let read = await readImageInfo(files[i], ({ stage, pct }) => {
             this.readingText = stage === 'read' ? `${tag}글자 읽는 중${pct != null ? ` ${pct}%` : '…'}` : `${tag}읽기 도구 준비 중…`
           }, crop)
+          // 앱: ML Kit 로 읽었는데 기록을 하나도 못 찾으면 예전 방식(tesseract)으로 다시 읽는다
+          let mlkitText = ''
+          if (read.engine === 'ML Kit' && !this.hasRecords(read.text)) {
+            mlkitText = read.text
+            this.readingText = `${tag}다른 방법으로 다시 읽는 중…`
+            read = await readImageInfo(files[i], ({ stage, pct }) => {
+              this.readingText = stage === 'read' ? `${tag}다른 방법으로 다시 읽는 중${pct != null ? ` ${pct}%` : '…'}` : `${tag}읽기 도구 준비 중…`
+            }, crop, { tesseract: true })
+            read.engine = 'tesseract (ML Kit 0건)'
+          }
           const sec = Math.round((performance.now() - t0) / 100) / 10
           try { localStorage.setItem('ledger.ocrReady', '1') } catch { /* 저장 못 함 */ }
           this.firstLoad = false
           await this.addGroup(files[i], read.text)
           // 읽는 데 걸린 시간과 읽은 도구 (ML Kit / tesseract 비교용)
           const g = this.groups[this.groups.length - 1]
-          if (g) Object.assign(g, { sec, engine: read.engine })
+          if (g) Object.assign(g, { sec, engine: read.engine, mlkitText })
         }
       } catch (err) {
         this.error = navigator.onLine
@@ -404,6 +419,12 @@ export default {
       } finally {
         this.reading = false
       }
+    },
+
+    /** 읽은 글자에서 기록을 하나라도 찾을 수 있는지 (ML Kit 결과 확인용) */
+    hasRecords(text) {
+      if (this.mode === 'capture') return parseCapture(text, todayKST()).length > 0
+      return !!parseReceipt(text, todayKST()).amount
     },
 
     /** 읽은 글자 → 기록 후보 목록 */
@@ -561,6 +582,9 @@ export default {
 .thumb { width: 56px; height: 72px; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
 .gh-text { display: flex; flex-direction: column; gap: 2px; }
 .read-time { font-size: 11px; color: var(--text-faint); }
+.mlkit-raw { margin-top: 4px; }
+.mlkit-raw summary { cursor: pointer; font-size: 11px; }
+.mlkit-raw pre { margin: 4px 0 0; padding: 8px; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-all; font-size: 11px; background: var(--surface-sunken); border-radius: 8px; }
 .all-check { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-sub); cursor: pointer; flex-shrink: 0; white-space: nowrap; }
 
 .item { padding: 14px 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
