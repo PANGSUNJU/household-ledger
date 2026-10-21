@@ -79,8 +79,8 @@
             <span>시간</span>
             <input type="time" :value="remind.remind_time.slice(0, 5)" step="600" @change="$event.target.value ? saveRemind({ remind_time: $event.target.value }) : ($event.target.value = remind.remind_time.slice(0, 5))">
           </label>
-          <!-- 폰 푸시 알림 -->
-          <div class="push" role="group" aria-label="폰 알림">
+          <!-- 폰 푸시 알림 (웹). 안드로이드 앱은 아래 '앱 알림' 에서 -->
+          <div v-if="!native" class="push" role="group" aria-label="폰 알림">
             <template v-if="push.on">
               <p class="push-on">✓ 이 폰({{ push.device }})으로 알림을 받고 있어요</p>
               <div class="cal-btns">
@@ -94,13 +94,39 @@
             <p v-else class="muted small">{{ pushHelp }}</p>
             <p v-if="push.msg" class="small" :class="{ 'lock-error': push.err }" role="status">{{ push.msg }}</p>
           </div>
-          <details class="cal-alt">
+          <details v-if="!native" class="cal-alt">
             <summary>알림 대신 폰 캘린더에 넣기</summary>
             <div class="cal-btns">
               <button type="button" class="mini-btn" @click="downloadIcs">폰 캘린더에 추가 (.ics)</button>
               <a class="mini-btn" :href="googleUrl" target="_blank" rel="noopener">구글 캘린더에 추가</a>
             </div>
           </details>
+        </div>
+      </template>
+      <!-- 안드로이드 앱: 폰 안에 미리 예약하는 알림 -->
+      <template v-if="native">
+        <div class="row">
+          <span class="row-icon" style="background: #E9E3FA; color: #4A3D78"><AppIcon name="repeat" :size="16" /></span>
+          <span class="row-label two-line">
+            <label for="rec-notify-switch">고정 수입·지출 알림</label>
+            <span class="muted small">그날 아침 9시에 알려요 · 이 폰에만</span>
+          </span>
+          <button
+            id="rec-notify-switch" type="button" role="switch" class="switch" :class="{ on: appNotify.recurringOn }"
+            :aria-checked="appNotify.recurringOn" @click="toggleRecNotify"
+          ><span class="knob" /></button>
+        </div>
+        <div class="row native-notify" role="group" aria-label="앱 알림 상태">
+          <template v-if="appNotify.perm === 'granted'">
+            <p class="push-on">✓ 이 폰에 알림 {{ appNotify.count }}개가 예약돼 있어요</p>
+            <div class="cal-btns">
+              <button type="button" class="mini-btn" @click="testAppNotify">시험 알림 보내기</button>
+            </div>
+          </template>
+          <p v-else-if="appNotify.perm === 'denied'" class="muted small">알림이 막혀 있어요. 폰 설정 → 애플리케이션 → 가계부 앱 → 알림에서 허용해 주세요.</p>
+          <button v-else type="button" class="btn-push" @click="allowAppNotify">알림 허용하기</button>
+          <p v-if="appNotifyMsg" class="small" role="status">{{ appNotifyMsg }}</p>
+          <p v-if="appNotify.lastError" class="small lock-error" role="alert">알림을 예약하지 못했어요 ({{ appNotify.lastError }})</p>
         </div>
       </template>
     </section>
@@ -165,6 +191,8 @@
 
 <script>
 import { nameBoostOn, setNameBoost } from '@/lib/labs'
+import { isNative } from '@/lib/native'
+import { appNotify, askPermission, setRecurringOn, sendTestNotify, rescheduleAll, refreshPermission } from '@/lib/appNotify'
 import AppIcon from '@/components/AppIcon.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import PinPad from '@/components/PinPad.vue'
@@ -181,7 +209,7 @@ export default {
   components: { AppIcon, BottomSheet, PinPad },
   data() {
     return {
-      TIMEOUTS, busy: false, lockError: '', nameBoost: nameBoostOn(),
+      TIMEOUTS, busy: false, lockError: '', nameBoost: nameBoostOn(), native: isNative(), appNotifyMsg: '',
       WEEKDAYS, remind: null, remindMissing: false, remindBusy: false,
       push: { state: pushSupport(), on: false, device: '', busy: false, msg: '', err: false },
       CSV_RANGES: [{ v: 'month', t: '이번 달' }, { v: 'year', t: '올해' }, { v: 'all', t: '전체' }, { v: 'custom', t: '직접 선택' }],
@@ -202,6 +230,7 @@ export default {
     providerInitial() { return { kakao: 'K', google: 'G' }[auth.provider] || '@' },
     appUrl() { return window.location.origin },
     pwa() { return pwa },
+    appNotify() { return appNotify },
     showInstall() { return !pwa.installed && (pwa.installEvent || isIos()) },
     installHint() {
       return pwa.installEvent
@@ -227,28 +256,49 @@ export default {
     const r = await getRemindSettings()
     if (r) this.remind = r
     else this.remindMissing = true
+    if (this.native) { refreshPermission().catch(() => {}); return }   // 앱: 브라우저 푸시는 안 씀
     const sub = await currentSubscription()
     this.push.on = !!sub
     this.push.device = this.deviceLabel()
+  },
+  activated() {
+    if (this.native) refreshPermission().catch(() => {})
   },
   methods: {
     async saveRemind(patch) {
       const before = { ...this.remind }
       Object.assign(this.remind, patch)
       this.remindBusy = true; this.lockError = ''
-      try { await saveRemindSettings(patch) } catch (e) {
+      try {
+        await saveRemindSettings(patch)
+        if (this.native) rescheduleAll()   // 앱: 주간 알림 예약 다시
+      } catch (e) {
         this.remind = before
         this.lockError = '알림 설정을 저장하지 못했어요.'
         console.error(e)
       } finally { this.remindBusy = false }
     },
+    async toggleRecNotify() {
+      const on = !appNotify.recurringOn
+      if (on && appNotify.perm !== 'granted') await askPermission()
+      await setRecurringOn(on)
+    },
+    async allowAppNotify() {
+      const p = await askPermission()
+      this.appNotifyMsg = p === 'granted' ? '알림을 허용했어요.' : '알림을 허용하지 않았어요.'
+      await rescheduleAll()
+    },
+    async testAppNotify() {
+      try { await sendTestNotify(); this.appNotifyMsg = '5초 뒤에 시험 알림이 와요.' } catch (e) { this.appNotifyMsg = '보내지 못했어요.'; console.error(e) }
+    },
     toggleNameBoost() {
       this.nameBoost = !this.nameBoost
       setNameBoost(this.nameBoost)
     },
-    toggleRemind() {
+    async toggleRemind() {
       // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
       const on = !this.remind.remind_enabled
+      if (on && this.native && appNotify.perm !== 'granted') await askPermission()
       this.saveRemind(on ? { remind_enabled: true, remind_done_on: todayKST() } : { remind_enabled: false })
     },
     deviceLabel() {
@@ -397,6 +447,7 @@ export default {
 .small { font-size: 12px; }
 .logout { border: 0; background: transparent; text-align: left; color: var(--expense); width: 100%; }
 .two-line { display: flex; flex-direction: column; }
+.native-notify { flex-direction: column; align-items: stretch; gap: 8px; }
 .switch { position: relative; width: 52px; height: 32px; flex-shrink: 0; border: 0; border-radius: 16px; background: var(--border); transition: background 0.15s; }
 .switch.on { background: #E8806A; }
 .switch .knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 13px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(120, 90, 70, 0.25); transition: left 0.15s; }
