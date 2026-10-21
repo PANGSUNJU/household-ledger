@@ -4,14 +4,16 @@
 배포하고 나면 이 목록은 비우고 "배포 기록"으로 옮겨요.
 
 ## 배포 대기
-- [ ] **안드로이드 앱 (Capacitor) 1단계: 설치되는 APK + 로그인** — `docs/CAPACITOR-APP.md`
-  - ⚠️ 배포 전에 할 일: GitHub 비밀값 `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY` 넣기, Supabase Redirect URLs 에 `dev.pang7163y.ledger://login` 추가
-  - 지금 저장소에 `android/` 추가 (새 앱 `dev.pang7163y.ledger` '가계부 앱', TWA 와 나란히 설치). 화면 파일은 앱 안에.
-  - GitHub Actions `Android app`: main 에 올라가면 APK 를 만들어 Releases `app-latest` 에 올림. 서명 열쇠 비밀값이 없으면 시험용 임시 서명.
-  - 앱 안에서만: 카카오·구글·이메일 로그인을 폰 브라우저로 열고 `dev.pang7163y.ledger://login` 으로 돌아오기, 뒤로 가기 버튼, 상태 표시줄과 안 겹치게, 앱 아이콘·시작 화면. 서비스 워커·설치 안내는 앱에서 끔.
-  - 웹은 그대로 (화면 시험 통과). 알림·ML Kit 글자 읽기·공유받기는 다음 단계.
+(없음)
 
 ## 배포 기록
+- 2026-10-21 (2차): dev → main 배포 (1개, SQL 없음)
+  - [x] **안드로이드 앱 (Capacitor) 1단계: 설치되는 APK + 로그인** — `docs/CAPACITOR-APP.md`
+    - (배포 전 할 일 완료: GitHub 비밀값 2개, Supabase Redirect URL)
+    - 지금 저장소에 `android/` 추가 (새 앱 `dev.pang7163y.ledger` '가계부 앱', TWA 와 나란히 설치). 화면 파일은 앱 안에.
+    - GitHub Actions `Android app`: main 에 올라가면 APK 를 만들어 Releases `app-latest` 에 올림. 서명 열쇠 비밀값이 없으면 시험용 임시 서명.
+    - 앱 안에서만: 카카오·구글·이메일 로그인을 폰 브라우저로 열고 `dev.pang7163y.ledger://login` 으로 돌아오기, 뒤로 가기 버튼, 상태 표시줄과 안 겹치게, 앱 아이콘·시작 화면. 서비스 워커·설치 안내는 앱에서 끔.
+    - 웹은 그대로 (화면 시험 통과). 알림·ML Kit 글자 읽기·공유받기는 다음 단계.
 - 2026-10-21: dev → main 배포 (1개, SQL 없음)
   - [x] **[시험 기능] 이름 다시 읽기 결과가 보이게 + 더 많이 고르기**: 캡처 제목 아래 '이름 시험 켜짐: ○/○개 고침'. 이름 도구를 못 받거나 못 돌리면 빨간 글씨로 '이름 다시 읽기를 못 했어요 (이유)' (전엔 조용히 넘어가서 폰에서 왜 안 되는지 알 수 없었음). '경산01점'(←DT)처럼 한글 사이에 낀 숫자, '04 경산역점'(←CU)처럼 이름 앞 1~2자리 숫자도 다시 읽기 대상. 가짜 캡처(SK텔레콤·경산DT점·SK에너지·GS25·KT·CU) 6/6.
 - 2026-10-20 (7차): dev → main 배포 (1개, SQL 없음)
