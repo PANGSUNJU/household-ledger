@@ -6,6 +6,7 @@
  *  · 처음 한 번은 글자 데이터(약 4.5MB)를 받느라 느리고, 그 뒤엔 브라우저에 저장돼 빠르다
  */
 import { createWorker } from 'tesseract.js'
+import { isNative } from './native'
 import { pickCuts } from './ocr-cut'
 import { flatLines, amountBox, cleanReread, replaceAmount, pickAmount, dateBox, cleanDate, replaceDate } from './ocr-amount'
 
@@ -124,9 +125,38 @@ export function darkToLight(ctx, w, h) {
  * 이미지 → 읽은 글자
  * onProgress({ stage: 'load' | 'read', pct })
  * crop: 읽을 영역 { x, y, w, h } (0~1 비율, 없으면 전체)
- * opts.name: [시험 기능] 이름 더 정확하게 읽기
  */
-export async function readImage(file, onProgress, crop = null, opts = {}) {
+/** 이미지 → 읽은 글자 (예전과 같음: 글자만) */
+export async function readImage(file, onProgress, crop = null) {
+  return (await readImageInfo(file, onProgress, crop)).text
+}
+
+/**
+ * 이미지 → { text, engine }
+ *  · 안드로이드 앱: 구글 ML Kit (한국어) — 빠르고 한글·영어 섞인 이름에 강함. 실패하면 tesseract 로
+ *  · 웹: tesseract (지금 그대로)
+ */
+export async function readImageInfo(file, onProgress, crop = null) {
+  if (isNative()) {
+    try {
+      const { mlkitRead } = await import('./ocr-mlkit')
+      const pieces = await prepare(file, crop)
+      const texts = []
+      for (let k = 0; k < pieces.length; k++) {
+        onProgress?.({ stage: 'read', pct: pieces.length > 1 ? Math.round(k / pieces.length * 100) : null })
+        texts.push(await mlkitRead(pieces[k]))
+        pieces[k].width = pieces[k].height = 0
+      }
+      return { text: texts.join('\n'), engine: 'ML Kit' }
+    } catch (e) {
+      console.warn('ML Kit 실패 → tesseract 로', e)
+      return { text: await readTesseract(file, onProgress, crop), engine: 'tesseract (ML Kit 실패: ' + String(e?.message || e).slice(0, 40) + ')' }
+    }
+  }
+  return { text: await readTesseract(file, onProgress, crop), engine: '' }
+}
+
+async function readTesseract(file, onProgress, crop = null) {
   progressFn = (m) => {
     if (!onProgress) return
     if (m.status === 'recognizing text') onProgress({ stage: 'read', pct: Math.round(m.progress * 100) })
@@ -141,7 +171,7 @@ export async function readImage(file, onProgress, crop = null, opts = {}) {
         if (!onProgress) return
         if (m.status === 'recognizing text') onProgress({ stage: 'read', pct: Math.round((k + m.progress) / pieces.length * 100) })
       }
-      texts.push(await readPiece(worker, pieces[k], opts, onProgress))
+      texts.push(await readPiece(worker, pieces[k]))
       pieces[k].width = pieces[k].height = 0   // 메모리 바로 비우기
     }
     return texts.join('\n')
@@ -151,7 +181,7 @@ export async function readImage(file, onProgress, crop = null, opts = {}) {
 }
 
 /** 한 조각 읽기: 전체를 읽고 → 금액 자리만 숫자로 다시 읽어 바꿔 넣기 */
-async function readPiece(worker, canvas, opts = {}, onProgress = null) {
+async function readPiece(worker, canvas) {
   const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true })
   const lines = flatLines(data.blocks)
   if (!lines.length) return data.text || ''
@@ -159,28 +189,6 @@ async function readPiece(worker, canvas, opts = {}, onProgress = null) {
   // 줄마다 오른쪽 금액 자리
   const cand = []
   lines.forEach((l, i) => { const r = amountBox(l); if (r) cand.push({ i, ...r }) })
-  // [시험 기능] 이름 더 정확하게 읽기 (설정에서 켰을 때만): 미심쩍은 이름만 PaddleOCR 한국어 모델로
-  //  (금액을 바꾸기 전에 한다: 원래 금액 글자로 이름이 끝나는 자리를 찾음)
-  if (opts.name && cand.length) {
-    try {
-      const [{ planNames, putName }, N] = await Promise.all([import('./ocr-name-plan'), import('./ocr-name')])
-      const plan = planNames(lines, cand)
-      if (plan.length) {
-        onProgress?.({ stage: 'name-load' })
-        await N.initName()
-        onProgress?.({ stage: 'name' })
-        let changed = 0
-        for (const p of plan) {
-          const r = N.readNameBox(canvas, p.box)
-          if (r.text && r.conf >= 0.5) { const t = putName(texts[p.i], p.parts, r.text); if (t !== texts[p.i]) changed++; texts[p.i] = t }
-        }
-        onProgress?.({ stage: 'name-done', tried: plan.length, changed })
-      } else onProgress?.({ stage: 'name-done', tried: 0, changed: 0 })
-    } catch (e) {
-      console.warn('이름 다시 읽기 실패 (처음 읽은 이름 그대로)', e)
-      onProgress?.({ stage: 'name-fail', error: String(e?.message || e).slice(0, 80) })
-    }
-  }
   // 금액 자리: 숫자·쉼표·원만 다시 읽기
   if (cand.length) {
     let again = []
