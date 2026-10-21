@@ -7,7 +7,7 @@
 (없음)
 
 ## 배포 기록
-- 2026-10-21 (2차): dev → main 배포 (1개, SQL 없음)
+- 2026-10-21 (2차): dev → main 배포 (1개, SQL 없음. 첫 APK 빌드 실패 → 버전 번호 계산 고쳐 3번째 빌드 성공, APK 약 24MB)
   - [x] **안드로이드 앱 (Capacitor) 1단계: 설치되는 APK + 로그인** — `docs/CAPACITOR-APP.md`
     - (배포 전 할 일 완료: GitHub 비밀값 2개, Supabase Redirect URL)
     - 지금 저장소에 `android/` 추가 (새 앱 `dev.pang7163y.ledger` '가계부 앱', TWA 와 나란히 설치). 화면 파일은 앱 안에.
