@@ -148,21 +148,6 @@
       </button>
     </section>
 
-    <section class="card menu" aria-label="시험 기능">
-      <h2>시험 기능</h2>
-      <div class="row">
-        <span class="row-icon" style="background: #E9E3FA; color: #4A3D78"><AppIcon name="image" :size="16" /></span>
-        <span class="row-label two-line">
-          <label for="name-boost-switch">캡처 가게 이름 더 정확하게</label>
-          <span class="muted small">영어가 섞인 이름(DT점, CU 등)을 더 잘 읽어요. 처음 켜면 약 16MB를 받고, 읽는 시간이 길어져요. 이 폰에만 적용돼요.</span>
-        </span>
-        <button
-          id="name-boost-switch" type="button" role="switch" class="switch" :class="{ on: nameBoost }"
-          :aria-checked="nameBoost" @click="toggleNameBoost"
-        ><span class="knob" /></button>
-      </div>
-    </section>
-
     <section class="card menu" aria-label="기타">
       <button type="button" class="row logout" @click="logout">로그아웃</button>
     </section>
@@ -196,7 +181,6 @@
 </template>
 
 <script>
-import { nameBoostOn, setNameBoost } from '@/lib/labs'
 import { isNative } from '@/lib/native'
 import { appNotify, askPermission, setRecurringOn, sendTestNotify, rescheduleAll, refreshPermission, openNotifySettings } from '@/lib/appNotify'
 import AppIcon from '@/components/AppIcon.vue'
@@ -215,7 +199,7 @@ export default {
   components: { AppIcon, BottomSheet, PinPad },
   data() {
     return {
-      TIMEOUTS, busy: false, lockError: '', nameBoost: nameBoostOn(), native: isNative(), appNotifyMsg: '',
+      TIMEOUTS, busy: false, lockError: '', native: isNative(), appNotifyMsg: '',
       WEEKDAYS, remind: null, remindMissing: false, remindBusy: false,
       push: { state: pushSupport(), on: false, device: '', busy: false, msg: '', err: false },
       CSV_RANGES: [{ v: 'month', t: '이번 달' }, { v: 'year', t: '올해' }, { v: 'all', t: '전체' }, { v: 'custom', t: '직접 선택' }],
@@ -334,10 +318,6 @@ export default {
     /** 폰 설정에 다녀오면 알림 상태 다시 확인 + 예약 다시 */
     onBackFromPhone() {
       if (document.visibilityState === 'visible' && this.native) refreshPermission().then(() => rescheduleAll()).catch(() => {})
-    },
-    toggleNameBoost() {
-      this.nameBoost = !this.nameBoost
-      setNameBoost(this.nameBoost)
     },
     async toggleRemind() {
       // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
