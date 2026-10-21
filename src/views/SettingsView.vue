@@ -131,7 +131,7 @@
             <button type="button" class="mini-btn" @click="openPhoneNotify">폰 알림 설정 열기</button>
           </template>
           <p v-if="appNotifyMsg" class="small" role="status">{{ appNotifyMsg }}</p>
-          <p class="tiny-state">상태: {{ appNotify.rawPerm || '확인 중' }} · 예약 {{ appNotify.count }}개</p>
+          <p class="tiny-state">상태: {{ appNotify.rawPerm || '확인 중' }} · 예약 {{ appNotify.count }}개{{ appNotify.lastRun ? ` · ${appNotify.lastRun} 맞춤` : '' }}</p>
           <p v-if="appNotify.lastError" class="small lock-error" role="alert">알림을 예약하지 못했어요 ({{ appNotify.lastError }})</p>
         </div>
       </template>
@@ -294,8 +294,8 @@ export default {
     },
     async toggleRecNotify() {
       const on = !appNotify.recurringOn
-      if (on && appNotify.perm !== 'granted') await this.tryAsk()
-      await setRecurringOn(on)
+      setRecurringOn(on)   // 켜기·끄기는 바로
+      if (on && appNotify.perm !== 'granted') this.tryAsk()
     },
     async allowAppNotify() {
       this.appNotifyMsg = '확인 중…'
@@ -343,7 +343,7 @@ export default {
       // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
       const on = !this.remind.remind_enabled
       // 앱: 켤 때 알림 허용을 물어보되, 실패해도 설정은 저장한다 (허용은 아래 '폰 알림 설정 열기'로도 가능)
-      if (on && this.native && appNotify.perm !== 'granted') await this.tryAsk()
+      if (on && this.native && appNotify.perm !== 'granted') this.tryAsk()   // 기다리지 않음 (켜기는 바로)
       this.saveRemind(on ? { remind_enabled: true, remind_done_on: todayKST() } : { remind_enabled: false })
     },
     deviceLabel() {

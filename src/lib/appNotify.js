@@ -14,6 +14,11 @@ import { todayKST, addDays } from './date'
 import { planRecurring, planWeekly, RECURRING_DAYS } from './appNotify-plan'
 
 const REC_KEY = 'ledger.notifyRecurring'
+
+/** 폰 기능 호출이 응답 없이 멈추지 않게 (ms 안에 안 오면 실패로) */
+function within(p, ms, what) {
+  return Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what} 응답 없음`)), ms))])
+}
 const CHANNEL = 'ledger'
 
 // 우리 앱 전용 네이티브 기능 (android/.../AppSettingsPlugin.java)
@@ -21,7 +26,8 @@ const AppSettings = registerPlugin('AppSettings')
 
 export const appNotify = reactive({
   perm: 'unknown',     // 'granted' | 'denied' | 'prompt' | 'unknown'
-  rawPerm: '',         // 폰이 알려 준 그대로 (prompt-with-rationale 등) — 화면에 표시해 원인 찾기
+  rawPerm: '',         // 폰이 알려 준 그대로 — 화면에 표시해 원인 찾기
+  lastRun: '',         // 마지막으로 예약을 맞춘 시각 (HH:MM)
   recurringOn: readRecurringOn(),
   count: 0,            // 지금 예약된 알림 수
   lastError: ''
@@ -43,19 +49,40 @@ function setPerm(display) {
   return appNotify.perm
 }
 
+/**
+ * 알림이 켜져 있는지: 안드로이드에 '이 앱 알림 켜져 있어?' 만 바로 묻는다
+ * (권한 묻기 창 기능을 거치지 않아 멈추지 않음). 안 되면 우리 앱 전용 기능으로 한 번 더
+ */
 export async function refreshPermission() {
   if (!isNative()) return 'unknown'
-  try { return setPerm((await (await plugin()).checkPermissions()).display) } catch (e) {
-    appNotify.lastError = '알림 상태 확인 실패: ' + String(e?.message || e).slice(0, 80)
-    return appNotify.perm
+  try {
+    const r = await within((await plugin()).areEnabled(), 3000, '알림 상태')
+    appNotify.rawPerm = r.value ? 'enabled' : 'disabled'
+    return setPermOnly(r.value ? 'granted' : 'denied')
+  } catch (e1) {
+    try {
+      const r = await within(AppSettings.notifyStatus(), 3000, '알림 상태(앱)')
+      appNotify.rawPerm = (r.enabled ? 'enabled' : 'disabled') + ' (sdk ' + r.sdk + ')'
+      return setPermOnly(r.enabled ? 'granted' : 'denied')
+    } catch (e2) {
+      appNotify.lastError = '알림 상태 확인 실패: ' + String(e1?.message || e1).slice(0, 60)
+      return appNotify.perm
+    }
   }
 }
+function setPermOnly(p) { appNotify.perm = p; return p }
 
 /** 알림 허용 묻기 (한 번 거절하면 안드로이드가 다시 묻지 않음 → 폰 설정에서 켜야 함) */
 export async function askPermission() {
   if (!isNative()) return 'unknown'
-  const p = await (await plugin()).requestPermissions()
-  return setPerm(p.display)
+  if ((await refreshPermission()) === 'granted') return 'granted'
+  try {
+    const p = await within((await plugin()).requestPermissions(), 8000, '알림 허용 창')
+    appNotify.rawPerm = String(p.display || '')
+  } catch (e) {
+    appNotify.lastError = String(e?.message || e).slice(0, 80)
+  }
+  return refreshPermission()
 }
 
 /** 폰의 '가계부 앱 알림 설정' 화면 열기 */
@@ -99,8 +126,8 @@ async function doReschedule() {
   appNotify.lastError = ''
   try {
     // 우리가 예약했던 것 모두 지우고 새로
-    const pending = await ln.getPending()
-    if (pending.notifications.length) await ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) })
+    const pending = await within(ln.getPending(), 5000, '예약 목록')
+    if (pending.notifications.length) await within(ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) }), 5000, '예약 지우기')
     if ((await refreshPermission()) !== 'granted') { appNotify.count = 0; return }
 
     const now = new Date()
@@ -114,7 +141,7 @@ async function doReschedule() {
     list.push(...planWeekly(s, now))
 
     if (list.length) {
-      await ln.schedule({
+      await within(ln.schedule({
         notifications: list.map((n) => ({
           id: n.id, title: n.title, body: n.body, extra: n.extra, channelId: CHANNEL,
           smallIcon: 'ic_stat_notify', iconColor: '#E8806A',
@@ -122,9 +149,10 @@ async function doReschedule() {
           // 정확한 시각 알람은 안드로이드가 따로 허락(알람 및 리마인더)을 요구해서, 몇 분 늦어도 되는 일반 알람으로
           isExactNotification: false
         }))
-      })
+      }), 15000, '알림 예약')
     }
     appNotify.count = list.length
+    appNotify.lastRun = new Date().toTimeString().slice(0, 5)
   } catch (e) {
     console.warn('앱 알림 예약 실패', e)
     appNotify.lastError = String(e?.message || e).slice(0, 80)
@@ -141,14 +169,15 @@ export async function setRecurringOn(on) {
 /** 시험 알림: 5초 뒤 */
 export async function sendTestNotify() {
   const ln = await plugin()
-  await ln.schedule({
+  if ((await refreshPermission()) !== 'granted') throw new Error('알림이 꺼져 있어요')
+  await within(ln.schedule({
     notifications: [{
       id: 999, title: '시험 알림이에요', body: '앱 알림이 잘 와요!', channelId: CHANNEL,
       smallIcon: 'ic_stat_notify', iconColor: '#E8806A', extra: { url: '/settings' },
       schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true },
       isExactNotification: false
     }]
-  })
+  }), 8000, '시험 알림 예약')
 }
 
 /** 로그아웃: 이 폰에 예약한 알림 모두 지우기 */
