@@ -7,6 +7,7 @@
  */
 import { reactive } from 'vue'
 import { registerPlugin } from '@capacitor/core'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import { isNative } from './native'
 import { listRecurringItems, getRemindSettings } from './api'
 import { occurrencesBetween } from './recurring'
@@ -37,11 +38,12 @@ function readRecurringOn() {
   try { return localStorage.getItem(REC_KEY) !== '0' } catch { return true }
 }
 
-let LN = null
-async function plugin() {
-  if (!LN) LN = (await import('@capacitor/local-notifications')).LocalNotifications
-  return LN
-}
+/*
+ * 주의: Capacitor 플러그인 객체는 async 함수에서 그대로 return 하거나 await 하면 안 된다
+ * (모든 이름에 응답하는 특수 객체라 'then' 이 있는 것처럼 보여서, await 가 끝나지 않음)
+ * → 맨 위에서 바로 가져와 그대로 쓴다
+ */
+function plugin() { return LocalNotifications }
 
 function setPerm(display) {
   appNotify.rawPerm = String(display || '')
@@ -56,7 +58,7 @@ function setPerm(display) {
 export async function refreshPermission() {
   if (!isNative()) return 'unknown'
   try {
-    const r = await within((await plugin()).areEnabled(), 3000, '알림 상태')
+    const r = await within(plugin().areEnabled(), 3000, '알림 상태')
     appNotify.rawPerm = r.value ? 'enabled' : 'disabled'
     return setPermOnly(r.value ? 'granted' : 'denied')
   } catch (e1) {
@@ -77,7 +79,7 @@ export async function askPermission() {
   if (!isNative()) return 'unknown'
   if ((await refreshPermission()) === 'granted') return 'granted'
   try {
-    const p = await within((await plugin()).requestPermissions(), 8000, '알림 허용 창')
+    const p = await within(plugin().requestPermissions(), 8000, '알림 허용 창')
     appNotify.rawPerm = String(p.display || '')
   } catch (e) {
     appNotify.lastError = String(e?.message || e).slice(0, 80)
@@ -95,7 +97,7 @@ let started = false
 export async function initAppNotify(router) {
   if (!isNative() || started) return
   started = true
-  const ln = await plugin()
+  const ln = plugin()
   try {
     await ln.createChannel({ id: CHANNEL, name: '가계부 알림', description: '고정 수입·지출, 주간 정리', importance: 4, visibility: 1 })
   } catch { /* 이미 있음 */ }
@@ -122,7 +124,7 @@ export async function rescheduleAll() {
 }
 
 async function doReschedule() {
-  const ln = await plugin()
+  const ln = plugin()
   appNotify.lastError = ''
   try {
     // 우리가 예약했던 것 모두 지우고 새로
@@ -168,7 +170,7 @@ export async function setRecurringOn(on) {
 
 /** 시험 알림: 5초 뒤 */
 export async function sendTestNotify() {
-  const ln = await plugin()
+  const ln = plugin()
   if ((await refreshPermission()) !== 'granted') throw new Error('알림이 꺼져 있어요')
   await within(ln.schedule({
     notifications: [{
@@ -184,7 +186,7 @@ export async function sendTestNotify() {
 export async function cancelAllNotify() {
   if (!isNative()) return
   try {
-    const ln = await plugin()
+    const ln = plugin()
     const pending = await ln.getPending()
     if (pending.notifications.length) await ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) })
     appNotify.count = 0
