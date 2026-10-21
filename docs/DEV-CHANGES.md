@@ -4,7 +4,12 @@
 배포하고 나면 이 목록은 비우고 "배포 기록"으로 옮겨요.
 
 ## 배포 대기
-(없음)
+- [ ] **안드로이드 앱 (Capacitor) 1단계: 설치되는 APK + 로그인** — `docs/CAPACITOR-APP.md`
+  - ⚠️ 배포 전에 할 일: GitHub 비밀값 `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY` 넣기, Supabase Redirect URLs 에 `dev.pang7163y.ledger://login` 추가
+  - 지금 저장소에 `android/` 추가 (새 앱 `dev.pang7163y.ledger` '가계부 앱', TWA 와 나란히 설치). 화면 파일은 앱 안에.
+  - GitHub Actions `Android app`: main 에 올라가면 APK 를 만들어 Releases `app-latest` 에 올림. 서명 열쇠 비밀값이 없으면 시험용 임시 서명.
+  - 앱 안에서만: 카카오·구글·이메일 로그인을 폰 브라우저로 열고 `dev.pang7163y.ledger://login` 으로 돌아오기, 뒤로 가기 버튼, 상태 표시줄과 안 겹치게, 앱 아이콘·시작 화면. 서비스 워커·설치 안내는 앱에서 끔.
+  - 웹은 그대로 (화면 시험 통과). 알림·ML Kit 글자 읽기·공유받기는 다음 단계.
 
 ## 배포 기록
 - 2026-10-21: dev → main 배포 (1개, SQL 없음)

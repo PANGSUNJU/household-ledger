@@ -6,6 +6,7 @@
  */
 import { reactive } from 'vue'
 import { supabase } from './supabase'
+import { isNative } from './native'
 
 const VAPID = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
 
@@ -26,6 +27,8 @@ export function isIos() {
 
 /** 앱 시작할 때 한 번: 서비스 워커 등록 + 설치 기회 받아 두기 */
 export function initPwa() {
+  // 안드로이드 앱(Capacitor) 안: 이미 앱이라 설치 안내·서비스 워커가 필요 없다
+  if (isNative()) { pwa.installed = true; return }
   pwa.installed = isStandalone()
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()           // 크롬 기본 띠 대신 설정 화면의 버튼으로
@@ -61,6 +64,7 @@ export async function promptInstall() {
  *  'ready'       받을 수 있음
  */
 export function pushSupport() {
+  if (isNative()) return 'unsupported'   // 앱 알림은 다음 단계에서 (브라우저 알림은 앱 안에서 안 됨)
   if (!VAPID) return 'no-key'
   if (!(location.protocol === 'https:' || location.hostname === 'localhost')) return 'need-https'
   if (isIos() && !isStandalone()) return 'ios-install'

@@ -1,0 +1,10 @@
+{
+  "appId": "dev.pang7163y.ledger",
+  "appName": "가계부 앱",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "android": { "backgroundColor": "#FFFBF7" },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "css", "initialViewportFitValueHint": "contain" }
+  }
+}

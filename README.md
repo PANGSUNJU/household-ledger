@@ -130,7 +130,7 @@ Supabase **Authentication → URL Configuration** 의 **Site URL** 을 `http://l
 | `npm run test:ocr` | 이미지 읽기 시험 (`tests/ocr/fixtures` 의 캡처·영수증을 읽고 결과 확인) |
 | `npm run test:push` | 알림 보내기 함수의 '언제 보낼지' 규칙 시험 |
 
-배포는 `docs/DEPLOY.md`, 갤럭시 앱(APK)은 `docs/ANDROID-APP.md` 를 보세요.
+배포는 `docs/DEPLOY.md`, 갤럭시 앱(APK)은 `docs/ANDROID-APP.md`(TWA), 새 안드로이드 앱(Capacitor)은 `docs/CAPACITOR-APP.md` 를 보세요.
 
 `test:db` 가 확인하는 것: 기본값 자동 생성, 다른 사람 데이터 차단, 환불 연결 시 분류 자동 지정, 환불 분류 보호, 잠금 비밀번호(원래 숫자 저장 안 함), 고정 항목 자동 기록(주말 규칙, 같은 회차 한 번만, 미래 회차 안 만듦) 등 51개 + 고정 항목 날짜 규칙이 앱과 DB에서 같은지 1,488가지.
 
