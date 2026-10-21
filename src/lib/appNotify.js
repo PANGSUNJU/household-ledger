@@ -135,7 +135,7 @@ async function doReschedule() {
 export async function setRecurringOn(on) {
   appNotify.recurringOn = on
   try { localStorage.setItem(REC_KEY, on ? '1' : '0') } catch { /* 저장 못 함 */ }
-  await rescheduleAll()
+  rescheduleAll().catch(() => {})   // 예약은 뒤에서 (기다리지 않음)
 }
 
 /** 시험 알림: 5초 뒤 */
