@@ -12,9 +12,14 @@
     "predev": "node scripts/copy-ocr-assets.mjs",
     "prebuild": "node scripts/copy-ocr-assets.mjs",
     "test:ocr": "node scripts/copy-ocr-assets.mjs && node tests/ocr/ocr.test.mjs && node tests/ocr/cut.test.mjs && node tests/ocr/amount.test.mjs && node tests/ocr/name.test.mjs",
-    "test:push": "node tests/push/send-reminders.test.mjs"
+    "test:push": "node tests/push/send-reminders.test.mjs",
+    "test:app": "node tests/native.test.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/browser": "8.0.4",
+    "@capacitor/core": "8.5.2",
     "@rustors/model-ppocrv5-korean": "0.3.2",
     "@rustors/web": "0.3.1",
     "@supabase/supabase-js": "^2.75.0",
@@ -26,6 +31,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@electric-sql/pglite": "^0.5.10",
     "@vitejs/plugin-vue": "^6.0.0",
     "vite": "^7.1.0"

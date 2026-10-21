@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { supabase, isConfigured } from './supabase'
+import { isNative, NATIVE_REDIRECT, openInBrowser, initNative } from './native'
 
 const LAST_PROVIDER_KEY = 'ledger.lastProvider'
 
@@ -27,6 +28,21 @@ export async function initAuth() {
     if (!auth.returnError) auth.returnError = '로그인 상태를 확인하지 못했어요. 다시 로그인해 주세요.'
   }
   auth.ready = true
+  // 안드로이드 앱: 폰 브라우저에서 로그인하고 돌아오면 그 결과로 로그인
+  initNative({
+    onAuthReturn: async (r) => {
+      try {
+        if (r.error) { auth.returnError = /access_denied|cancel/i.test(r.error) ? '로그인을 취소했어요.' : `로그인하지 못했어요. (${r.error.slice(0, 80)})`; return }
+        const { error } = r.code
+          ? await supabase.auth.exchangeCodeForSession(r.code)
+          : await supabase.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token })
+        if (error) throw error
+      } catch (e) {
+        console.warn('앱 로그인 실패', e)
+        auth.returnError = '로그인하지 못했어요. 다시 해 주세요.'
+      }
+    }
+  }).catch((e) => console.warn('앱 기능 준비 실패', e))
   supabase.auth.onAuthStateChange((_event, session) => {
     auth.session = session
     if (session?.user?.app_metadata?.provider) {
@@ -64,6 +80,16 @@ export class ProviderDisabledError extends Error {
 export async function signInWith(provider) {
   if (!(await isProviderEnabled(provider))) throw new ProviderDisabledError(provider)
   rememberProvider(provider)
+  if (isNative()) {
+    // 앱: 카카오·구글 화면을 폰 브라우저로 열고, 끝나면 앱 주소로 돌아온다
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: NATIVE_REDIRECT, skipBrowserRedirect: true }
+    })
+    if (error) throw error
+    await openInBrowser(data.url)
+    return
+  }
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: { redirectTo: window.location.origin }
@@ -75,7 +101,7 @@ export async function signInWith(provider) {
 export async function signInWithEmail(email) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.origin }
+    options: { emailRedirectTo: isNative() ? NATIVE_REDIRECT : window.location.origin }
   })
   if (error) throw error
 }

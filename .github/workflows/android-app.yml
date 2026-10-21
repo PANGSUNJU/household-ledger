@@ -1,0 +1,87 @@
+# 안드로이드 앱(Capacitor) APK 자동 빌드
+#  · main 에 올라가거나(Actions 탭에서 'Run workflow' 를 눌러도) 빌드한다
+#  · 결과 APK 는 GitHub Releases 의 'app-latest' 에 올라간다 → 폰 브라우저로 받아 설치
+#  · 필요한 비밀값 (Settings → Secrets and variables → Actions)
+#      VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY  (Cloudflare 빌드 변수와 같은 값)
+#      ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS  (없으면 시험용 임시 서명)
+name: Android app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 웹 화면 빌드
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 비밀값이 없어요 (docs/CAPACITOR-APP.md 1번)"; exit 1
+          fi
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: 서명 열쇠 꺼내기 (있을 때만)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "KIND=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::서명 열쇠 비밀값이 없어 시험용 임시 서명으로 만들어요 (새 버전마다 지웠다 다시 설치해야 함)"
+            echo "KIND=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: APK 만들기
+        working-directory: android
+        env:
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          chmod +x gradlew
+          if [ "$KIND" = release ]; then ./gradlew --no-daemon assembleRelease; else ./gradlew --no-daemon assembleDebug; fi
+          APK=$(ls app/build/outputs/apk/$KIND/*.apk | head -1)
+          cp "$APK" "$RUNNER_TEMP/gagyebu-app.apk"
+          ls -la "$RUNNER_TEMP/gagyebu-app.apk"
+
+      - name: Releases 'app-latest' 에 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTE="빌드 ${{ github.run_number }} · $(date -u +'%Y-%m-%d %H:%M') UTC · ${{ github.sha }} · 서명: $KIND"
+          if gh release view app-latest >/dev/null 2>&1; then
+            gh release upload app-latest "$RUNNER_TEMP/gagyebu-app.apk" --clobber
+            gh release edit app-latest --notes "$NOTE"
+          else
+            gh release create app-latest "$RUNNER_TEMP/gagyebu-app.apk" --title "가계부 앱 (최신)" --notes "$NOTE" --prerelease
+          fi

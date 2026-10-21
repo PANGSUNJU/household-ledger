@@ -1,0 +1,64 @@
+# 안드로이드 앱 (Capacitor) — 갤럭시용, 0원
+
+> 지금 Vue 웹앱을 **진짜 안드로이드 앱 상자**에 담은 버전이에요. 화면 코드는 웹과 같고,
+> 폰 기능(글자 읽기 ML Kit, 앱 알림 등)은 다음 단계에서 하나씩 붙여요.
+> 기존 TWA 앱(`docs/ANDROID-APP.md`)과 **다른 앱**이라 나란히 설치해서 비교할 수 있어요.
+
+| | 값 |
+|---|---|
+| 앱 이름 | 가계부 앱 |
+| 앱 ID (패키지) | `dev.pang7163y.ledger` |
+| 로그인 후 돌아오는 주소 | `dev.pang7163y.ledger://login` |
+| APK 받는 곳 | GitHub 저장소 → Releases → **가계부 앱 (최신)** (`app-latest`) |
+| 만드는 곳 | GitHub Actions `Android app` (main 에 올라가면 자동, Actions 탭에서 직접 실행도 가능) |
+
+## 1. GitHub 비밀값 넣기 (처음 한 번, 5분)
+저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+
+| 이름 | 값 | 꼭 필요? |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Cloudflare 빌드 변수의 같은 이름 값 | 예 |
+| `VITE_SUPABASE_ANON_KEY` | Cloudflare 빌드 변수의 같은 이름 값 | 예 |
+| `ANDROID_KEYSTORE_BASE64` | 아래 3번에서 만든 서명 열쇠 | 나중에 |
+| `ANDROID_KEYSTORE_PASSWORD` | 서명 열쇠 비밀번호 | 나중에 |
+| `ANDROID_KEY_ALIAS` | `ledger` | 나중에 |
+
+- 앞의 두 개만 넣어도 APK 가 만들어져요. 이때는 **시험용 임시 서명**이라, 새 버전이 나올 때마다 앱을 **지웠다가 다시 설치**해야 해요 (기록은 서버에 있어서 그대로).
+- 비밀값은 GitHub 이 암호화해서 보관하고, 넣은 뒤에는 아무도(본인도) 다시 볼 수 없어요. 채팅이나 저장소 파일에는 적지 않아요.
+
+## 2. Supabase 에 '돌아오는 주소' 등록 (처음 한 번)
+Supabase 대시보드 → **Authentication → URL Configuration → Redirect URLs → Add URL**
+→ `dev.pang7163y.ledger://login` 추가 → Save
+
+- 앱에서 카카오·구글 로그인은 **폰 브라우저 창**으로 열려요 (구글이 앱 안 화면 로그인을 막아서). 로그인이 끝나면 이 주소로 앱에 돌아와요.
+- 이걸 안 하면 로그인 뒤 웹 화면으로 가 버리고 앱은 로그인되지 않아요.
+
+## 3. (나중에) 서명 열쇠 만들기 — 앱을 지우지 않고 업데이트하려면
+팡이 PC 의 PowerShell (Java 가 깔려 있으면 `keytool` 이 있어요):
+```powershell
+keytool -genkeypair -v -keystore ledger-app.keystore -alias ledger -keyalg RSA -keysize 2048 -validity 10000
+# 비밀번호와 이름 등을 물어봐요. 비밀번호는 비밀번호 관리자에 저장해 두세요.
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("ledger-app.keystore")) | Set-Clipboard
+# → 클립보드 내용을 ANDROID_KEYSTORE_BASE64 비밀값에 붙여넣기
+```
+- `ledger-app.keystore` 파일은 **PC 안전한 곳에 보관**, GitHub·채팅에 올리지 않기.
+- 열쇠를 넣은 뒤 처음 받은 앱은 임시 서명 앱과 서명이 달라서 한 번은 지웠다 다시 설치해야 해요. 그 뒤로는 덮어 설치(업데이트)가 돼요.
+
+## 4. 폰에 설치
+1. 폰 브라우저로 GitHub 저장소 → **Releases** → **가계부 앱 (최신)** → `gagyebu-app.apk` 받기
+2. 받은 파일 열기 → '출처를 알 수 없는 앱' 허용 → 설치 ('Play 프로텍트' 경고는 **무시하고 설치**)
+3. 앱 서랍에 **가계부 앱** 이 생겨요 (기존 '가계부' TWA 앱과 따로)
+
+## 지금 되는 것 / 다음 단계
+| | 상태 |
+|---|---|
+| 화면·기록·통계·캡처(지금 방식 글자 읽기) | 웹과 같음 |
+| 카카오·구글·이메일 로그인 | 폰 브라우저로 로그인 → 앱으로 돌아옴 |
+| 뒤로 가기 버튼 | 앞 화면으로, 첫 화면이면 앱을 닫지 않고 내려 둠 |
+| 알림 | **아직 안 됨** (설정의 알림 칸은 '이 브라우저는 못 받음'으로 보여요) → 다음 단계: 앱 알림 |
+| 글자 읽기 ML Kit | 다음 단계 |
+| 캡처 '공유 → 가계부' | 다음 단계 |
+
+## 웹에는 영향 없음
+- 새 코드(`src/lib/native.js`)는 앱 안에서만 동작해요. 웹(PC·브라우저)은 그대로예요.
+- 앱 화면 파일은 APK 안에 들어 있어서, 웹을 배포한 뒤 **앱은 새 APK 를 설치해야** 같은 화면이 돼요.

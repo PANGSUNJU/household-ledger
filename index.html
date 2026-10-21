@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <script>
+      // 안드로이드 앱(Capacitor) 안에서는 화면을 상태 표시줄·아래 버튼 영역 밖에만 그린다 (겹치지 않게)
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        document.querySelector('meta[name=viewport]').setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=contain')
+      }
+    </script>
     <meta name="theme-color" content="#FFFBF7" />
     <title>내 가계부</title>
     <!-- 폰 홈 화면에 앱처럼 추가 (PWA) -->
