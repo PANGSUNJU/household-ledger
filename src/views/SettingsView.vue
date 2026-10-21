@@ -290,19 +290,28 @@ export default {
     },
     async toggleRecNotify() {
       const on = !appNotify.recurringOn
-      if (on && appNotify.perm !== 'granted') await askPermission()
+      if (on && appNotify.perm !== 'granted') await this.tryAsk()
       await setRecurringOn(on)
     },
     async allowAppNotify() {
       this.appNotifyMsg = '확인 중…'
       try {
-        const p = await askPermission()
+        const p = await Promise.race([askPermission(), new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000))])
         this.appNotifyMsg = p === 'granted' ? '알림을 허용했어요.'
           : '허용되지 않았어요. 창이 안 떴다면 \'폰 알림 설정 열기\'에서 직접 켜 주세요.'
         await rescheduleAll()
       } catch (e) {
         this.appNotifyMsg = '알림 허용을 묻지 못했어요: ' + String(e?.message || e).slice(0, 80)
         console.error(e)
+      }
+    },
+    /** 알림 허용 묻기 — 실패하거나 창이 안 떠도 다음 단계는 계속 (최대 8초 기다림) */
+    async tryAsk() {
+      try {
+        const p = await Promise.race([askPermission(), new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000))])
+        if (p !== 'granted') this.appNotifyMsg = '알림이 아직 허용되지 않았어요. \'폰 알림 설정 열기\'에서 켜 주세요.'
+      } catch (e) {
+        this.appNotifyMsg = '알림 허용을 묻지 못했어요: ' + String(e?.message || e).slice(0, 80)
       }
     },
     async openPhoneNotify() {
@@ -327,7 +336,8 @@ export default {
     async toggleRemind() {
       // 켤 때는 '이번 주는 확인함'으로 두어 바로 안내가 뜨지 않게
       const on = !this.remind.remind_enabled
-      if (on && this.native && appNotify.perm !== 'granted') await askPermission()
+      // 앱: 켤 때 알림 허용을 물어보되, 실패해도 설정은 저장한다 (허용은 아래 '폰 알림 설정 열기'로도 가능)
+      if (on && this.native && appNotify.perm !== 'granted') await this.tryAsk()
       this.saveRemind(on ? { remind_enabled: true, remind_done_on: todayKST() } : { remind_enabled: false })
     },
     deviceLabel() {
