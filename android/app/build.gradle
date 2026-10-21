@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// GitHub Actions 가 빌드 번호를 넣어 준다 (번호가 커야 지우지 않고 업데이트됨)
+def appVersionCode = Integer.parseInt(System.getenv("APP_VERSION_CODE") ?: "1")
+def appVersionName = System.getenv("APP_VERSION_NAME") ?: "1.0"
+
 android {
     namespace = "dev.pang7163y.ledger"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,9 +11,8 @@ android {
         applicationId "dev.pang7163y.ledger"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // GitHub Actions 가 빌드 번호를 넣어 준다 (번호가 커야 지우지 않고 업데이트됨)
-        versionCode (System.getenv("APP_VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("APP_VERSION_NAME") ?: "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
