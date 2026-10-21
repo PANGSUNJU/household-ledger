@@ -57,11 +57,16 @@
             <strong>{{ g.mode === 'capture' ? `카드·은행 앱 캡처 ${gi + 1}` : '영수증' }}</strong>
             <span class="muted small">{{ g.items.length ? `${g.items.length}건` : '읽은 기록이 없어요. 더 선명한 이미지로 다시 해 주세요.' }}</span>
             <span v-if="g.sec" class="muted small read-time">읽는 데 {{ g.sec }}초{{ g.engine ? ` · ${g.engine}` : '' }}</span>
-            <!-- 앱: ML Kit 가 읽은 글자 (기록을 못 찾아 다시 읽었을 때, 원인 확인용) -->
+            <!-- 앱: ML Kit 가 읽은 글자 (원인 확인용, 접혀 있음) -->
             <details v-if="g.mlkitText" class="mlkit-raw">
               <summary class="muted small">ML Kit 가 읽은 글자 보기</summary>
               <pre>{{ g.mlkitText }}</pre>
             </details>
+            <!-- 앱: ML Kit 로 읽은 묶음을 예전 방식(tesseract)으로 다시 읽기 (이미지가 이 화면에 남아 있을 때만) -->
+            <button
+              v-if="g.engine === 'ML Kit' && canReread(g)" type="button" class="reread-btn"
+              :disabled="reading" @click="reread(gi)"
+            >다른 방법으로 다시 읽기</button>
           </div>
           <!-- 전체 선택: 결제 취소 줄은 빼고 이 캡처의 모든 줄 (입금·충전 포함) -->
           <label v-if="pickable(g).length > 1" class="all-check">
@@ -254,6 +259,7 @@ export default {
     }
   },
   async created() {
+    this.srcFiles = new Map()   // 묶음 id → 원본 이미지 (다시 읽기용, 반응형 아님)
     // 앱이 지워졌다 다시 열린 경우: 아까 읽은 결과 되살리기 (공유로 새로 들어온 때는 빼고)
     if (!this.$route.query.shared) {
       const d = readDraft()
@@ -394,9 +400,8 @@ export default {
             this.readingText = stage === 'read' ? `${tag}글자 읽는 중${pct != null ? ` ${pct}%` : '…'}` : `${tag}읽기 도구 준비 중…`
           }, crop)
           // 앱: ML Kit 로 읽었는데 기록을 하나도 못 찾으면 예전 방식(tesseract)으로 다시 읽는다
-          let mlkitText = ''
+          const mlkitText = read.engine === 'ML Kit' ? read.text : ''
           if (read.engine === 'ML Kit' && !this.hasRecords(read.text)) {
-            mlkitText = read.text
             this.readingText = `${tag}다른 방법으로 다시 읽는 중…`
             read = await readImageInfo(files[i], ({ stage, pct }) => {
               this.readingText = stage === 'read' ? `${tag}다른 방법으로 다시 읽는 중${pct != null ? ` ${pct}%` : '…'}` : `${tag}읽기 도구 준비 중…`
@@ -409,12 +414,45 @@ export default {
           await this.addGroup(files[i], read.text)
           // 읽는 데 걸린 시간과 읽은 도구 (ML Kit / tesseract 비교용)
           const g = this.groups[this.groups.length - 1]
-          if (g) Object.assign(g, { sec, engine: read.engine, mlkitText })
+          if (g) {
+            // 다시 읽기용 이미지 (메모리에만, 임시 저장에는 안 넣음)
+            if (read.engine === 'ML Kit') this.srcFiles.set(g.id, { file: files[i], crop })
+            Object.assign(g, { sec, engine: read.engine, mlkitText })
+          }
         }
       } catch (err) {
         this.error = navigator.onLine
           ? '이미지를 읽지 못했어요. 다른 이미지로 다시 해 주세요.'
           : '처음 한 번은 읽기 도구를 받아야 해서 인터넷이 필요해요.'
+        console.error(err)
+      } finally {
+        this.reading = false
+      }
+    },
+
+    canReread(g) { return this.srcFiles.has(g.id) },
+
+    /** ML Kit 로 읽은 묶음을 예전 방식으로 다시 읽어서 그 자리에 바꿔 넣는다 */
+    async reread(gi) {
+      const old = this.groups[gi]
+      const src = old && this.srcFiles.get(old.id)
+      if (!src || this.reading) return
+      this.error = ''; this.reading = true; this.readingText = '다른 방법으로 다시 읽는 중…'
+      try {
+        const t0 = performance.now()
+        const read = await readImageInfo(src.file, ({ stage, pct }) => {
+          this.readingText = stage === 'read' ? `다른 방법으로 다시 읽는 중${pct != null ? ` ${pct}%` : '…'}` : '읽기 도구 준비 중…'
+        }, src.crop, { tesseract: true })
+        const sec = Math.round((performance.now() - t0) / 100) / 10
+        await this.addGroup(src.file, read.text, old.mode)
+        const g = this.groups.pop()
+        Object.assign(g, { sec, engine: 'tesseract (다시 읽음)', mlkitText: old.mlkitText || '' })
+        this.srcFiles.delete(old.id)
+        const at = this.groups.indexOf(old)
+        if (at >= 0) this.groups.splice(at, 1, g); else this.groups.push(g)
+        await this.markDuplicates()
+      } catch (err) {
+        this.error = '다시 읽지 못했어요. 이미지를 다시 골라 주세요.'
         console.error(err)
       } finally {
         this.reading = false
@@ -428,15 +466,15 @@ export default {
     },
 
     /** 읽은 글자 → 기록 후보 목록 */
-    async addGroup(file, text) {
+    async addGroup(file, text, mode = this.mode) {
       const today = todayKST()
       const g = {
-        id: ++seq, mode: this.mode, thumb: '', items: [], receipt: null, matches: [],
+        id: ++seq, mode, thumb: '', items: [], receipt: null, matches: [],
         payment_method_id: this.guessPm(text) || this.defaultPm
       }
       try { g.thumb = await smallThumb(file) } catch { g.thumb = '' }
       let found = []
-      if (this.mode === 'capture') {
+      if (mode === 'capture') {
         found = parseCapture(text, today)
       } else {
         const r = parseReceipt(text, today)
@@ -583,6 +621,8 @@ export default {
 .gh-text { display: flex; flex-direction: column; gap: 2px; }
 .read-time { font-size: 11px; color: var(--text-faint); }
 .mlkit-raw { margin-top: 4px; }
+.reread-btn { align-self: flex-start; margin-top: 6px; padding: 6px 10px; font-size: 12px; border-radius: 999px; border: 1px solid var(--line, #E6DDD5); background: var(--surface); color: var(--text); }
+.reread-btn:disabled { opacity: .5; }
 .mlkit-raw summary { cursor: pointer; font-size: 11px; }
 .mlkit-raw pre { margin: 4px 0 0; padding: 8px; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-all; font-size: 11px; background: var(--surface-sunken); border-radius: 8px; }
 .all-check { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-sub); cursor: pointer; flex-shrink: 0; white-space: nowrap; }
