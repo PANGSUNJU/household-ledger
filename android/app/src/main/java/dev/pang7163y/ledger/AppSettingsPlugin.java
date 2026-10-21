@@ -5,6 +5,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import androidx.core.app.NotificationManagerCompat;
+
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -32,5 +35,14 @@ public class AppSettingsPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("설정 화면을 열지 못했어요", e);
         }
+    }
+
+    /** 이 앱 알림이 켜져 있는지 (안드로이드에 바로 묻기) + 안드로이드 버전 */
+    @PluginMethod
+    public void notifyStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("enabled", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+        r.put("sdk", Build.VERSION.SDK_INT);
+        call.resolve(r);
     }
 }
