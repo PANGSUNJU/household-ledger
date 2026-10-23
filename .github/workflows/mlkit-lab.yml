@@ -32,8 +32,9 @@ jobs:
       - name: APK 미리 만들기
         working-directory: android
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
+          ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest 2>&1 | tee -a "$RUNNER_TEMP/build.log"
       - name: 에뮬레이터에서 ML Kit 돌리기
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -52,6 +53,11 @@ jobs:
             adb pull /sdcard/Android/data/dev.pang7163y.ledger/files/probe $RUNNER_TEMP/out/ || true
             adb logcat -d -s MLKITPROBE:I > $RUNNER_TEMP/out/logcat.txt || true
             ls -laR $RUNNER_TEMP/out | head -50
+      - name: 실패 원인 남기기
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/build.log" ] || exit 0
+          grep -nE "FAILURE|What went wrong|error:|Error:|ERROR|> " "$RUNNER_TEMP/build.log" | tail -25 | while IFS= read -r l; do echo "::error::${l:0:300}"; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
