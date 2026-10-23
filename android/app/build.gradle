@@ -59,8 +59,6 @@ dependencies {
     // mlkit-lab 시험용: ML Kit 를 직접 불러 결과 모양 확인
     androidTestImplementation "com.google.mlkit:text-recognition-korean:16.0.1"
     androidTestImplementation "androidx.test:runner:1.6.2"
-    // kotlin-stdlib-jdk7/8 옛 버전과 겹치지 않게 같은 버전으로 맞춤 (시험 쪽만)
-    androidTestImplementation platform("org.jetbrains.kotlin:kotlin-bom:1.8.22")
     implementation project(':capacitor-cordova-android-plugins')
 }
 
@@ -73,4 +71,12 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// mlkit-lab 시험용: 시험 APK 에서 kotlin-stdlib-jdk7/8 옛 버전이 겹치지 않게 뺀다 (1.8 부터 stdlib 에 들어 있음)
+configurations.configureEach {
+    if (name.toLowerCase().contains('androidtest')) {
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    }
 }
