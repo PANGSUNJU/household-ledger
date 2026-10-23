@@ -140,10 +140,19 @@
           <p v-if="it.checked && it.amount > MAX_AMOUNT" class="warn">10억 원까지 넣을 수 있어요</p>
           <p v-if="!it.date && it.kind !== 'cancel'" class="warn">날짜를 넣어 주세요</p>
           <p v-if="it.dup && it.checked" class="warn">⚠ 같은 날짜·금액·사용처 기록이 이미 있어요</p>
-          <div v-if="it.kind === 'cancel'" class="info">
+          <div v-if="it.kind === 'cancel'" class="info cancel-info">
             <span>취소 건이라 빼뒀어요</span>
-            <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
+            <!-- 취소가 아니면 (예: 하나카드 '결제취소 >' 버튼 글자) 지출·수입으로 바꿔 등록 -->
+            <span class="cancel-btns">
+              <button type="button" @click="setKind(it, 'expense')">지출로</button>
+              <button type="button" @click="setKind(it, 'income')">수입으로</button>
+              <button type="button" @click="toRefund(it, it.match)">환불로 기록</button>
+            </span>
           </div>
+          <p v-else-if="it.wasCancel" class="info small-info was-cancel">
+            <span>결제 취소로 읽었던 건이에요</span>
+            <button type="button" @click="setKind(it, 'cancel')">취소로 되돌리기</button>
+          </p>
           <p v-if="it.fixed === 'balance'" class="info small-info">남은 잔액으로 금액을 맞췄어요</p>
           <p v-if="it.charge && !it.checked" class="info small-info">잔액 충전이라 빼뒀어요</p>
           <p v-else-if="it.kind === 'income' && !it.checked" class="info small-info">입금이라 빼뒀어요</p>
@@ -532,13 +541,27 @@ export default {
       }
     },
 
+    /** 결제 취소로 읽은 줄을 지출·수입으로 바꾸기 (또는 다시 취소로) */
+    async setKind(it, kind) {
+      if (kind === 'cancel') {
+        Object.assign(it, { kind: 'cancel', checked: false, wasCancel: false, category_id: null })
+        if (it.match) it.amount = it.match.amount
+      } else {
+        // 취소선 때문에 원래 구매 금액으로 맞춰 뒀다면 읽은 금액으로 되돌린다
+        if (it.amountRead) it.amount = it.amountRead
+        Object.assign(it, { kind, checked: true, wasCancel: true, category_id: null, allCats: false })
+        await this.fillCategories([it])
+      }
+      await this.markDuplicates()
+    },
+
     /** 취소 건: 원래 구매가 기록에 있으면 찾아 둔다 */
     async findCancelMatches(items) {
       for (const it of items.filter((x) => x.kind === 'cancel')) {
         const ms = await this.findOriginals({ store: it.store, amount: it.amount, date: it.date, raw: it.raw }, { fuzzy: true })
         it.match = ms.length === 1 ? ms[0] : null
         // 취소선이 그어진 금액은 잘못 읽히기 쉽다 → 찾은 원래 구매 금액으로 맞춘다
-        if (it.match) it.amount = it.match.amount
+        if (it.match) { it.amountRead = it.amount; it.amount = it.match.amount }
       }
     },
     /**
@@ -668,6 +691,10 @@ export default {
 .info { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--info-bg); color: var(--info-fg); font-size: 12px; margin: 0; }
 .info button { border: 0; background: transparent; color: var(--info-fg); font-weight: 700; font-size: 12px; }
 .small-info { display: block; }
+.cancel-info { flex-wrap: wrap; gap: 6px; }
+.cancel-btns { display: flex; gap: 2px; margin-left: auto; }
+.cancel-btns button { padding: 4px 6px; }
+.was-cancel { display: flex; }
 
 .cancel-receipt { padding: 14px; display: flex; flex-direction: column; gap: 8px; border: 1.5px solid #CFE2F8; }
 .cancel-receipt p { margin: 0; }
