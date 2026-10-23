@@ -5,6 +5,9 @@ on:
   push:
     branches: [mlkit-lab]
 
+permissions:
+  contents: write
+
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -58,6 +61,13 @@ jobs:
         run: |
           [ -f "$RUNNER_TEMP/build.log" ] || exit 0
           grep -nE "FAILURE|What went wrong|error:|Error:|ERROR|> " "$RUNNER_TEMP/build.log" | tail -25 | while IFS= read -r l; do echo "::error::${l:0:300}"; done
+      - name: 결과를 이 브랜치에 커밋 (가짜 이미지 결과만)
+        if: always()
+        run: |
+          ls -laR "$RUNNER_TEMP/out" | head -40 | while IFS= read -r l; do echo "::notice::$l"; done
+          mkdir -p lab-results && cp -r "$RUNNER_TEMP/out/." lab-results/ || true
+          git config user.name "lab-bot"; git config user.email "lab-bot@users.noreply.github.com"
+          git add lab-results && git commit -m "lab-results [skip ci]" && git push || echo "nothing to commit"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
