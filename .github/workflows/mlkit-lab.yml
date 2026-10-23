@@ -1,0 +1,60 @@
+# 시험용 (mlkit-lab 브랜치에서만): 에뮬레이터에서 ML Kit 를 가짜 캡처 조각에 돌려 결과(JSON)를 artifact 로 남긴다
+name: ML Kit lab
+
+on:
+  push:
+    branches: [mlkit-lab]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: 웹 빌드 + 동기화
+        run: |
+          npm ci
+          VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=lab npm run build
+          npx cap sync android
+      - name: KVM 켜기
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: APK 미리 만들기
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: 에뮬레이터에서 ML Kit 돌리기
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
+          working-directory: android
+          script: |
+            adb logcat -G 16M || true
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -e class dev.pang7163y.ledger.MlkitProbeTest dev.pang7163y.ledger.test/androidx.test.runner.AndroidJUnitRunner | tee $RUNNER_TEMP/instr.txt
+            mkdir -p $RUNNER_TEMP/out
+            adb pull /sdcard/Android/data/dev.pang7163y.ledger/files/probe $RUNNER_TEMP/out/ || true
+            adb logcat -d -s MLKITPROBE:I > $RUNNER_TEMP/out/logcat.txt || true
+            ls -laR $RUNNER_TEMP/out | head -50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mlkit-probe
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
