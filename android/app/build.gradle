@@ -74,9 +74,8 @@ try {
 }
 
 // mlkit-lab 시험용: 시험 APK 에서 kotlin-stdlib-jdk7/8 옛 버전이 겹치지 않게 뺀다 (1.8 부터 stdlib 에 들어 있음)
+//  (시험 APK 와 앱 APK 의 라이브러리 버전을 맞추느라 앱 쪽에도 옛 버전이 들어와서 전체에서 뺀다 — 이 브랜치에서만)
 configurations.configureEach {
-    if (name.toLowerCase().contains('androidtest')) {
-        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
-        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
-    }
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
 }
