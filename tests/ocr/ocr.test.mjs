@@ -132,6 +132,20 @@ const bfBal = parseCapture(TOSS_TXT('7,200').replace('16:17 2,400원', '16:17 2,
 ok('잔액: 잔액 하나를 잘못 읽으면 금액은 건드리지 않음', bfBal.map((x) => x.amount).join() === '13,7200,10000,8100,10000,500', show(bfBal))
 ok('잔액: 결과에 잔액 값은 안 남김', bf.every((x) => x.balance === undefined), show(bf))
 
+// 토스: 시간 옆 메모 + 잔액 줄은 기록이 아니다 (가짜 이름·메모)
+const MEMO_TXT = (sub) => `10월 4일
+홍길동 -18,500원
+${sub} 57,069원
+가나다버거 경산점 -7,200원
+18:48 75,569원
+체크카드 복권 당첨 +13원
+18:40 82,769원`
+for (const sub of ['10:30 | 동네버거축제', '10:30 I 동네버거축제', '10:30 동네버거축제', '| 10:30 | 동네 버거 축제']) {
+  const m = parseCapture(MEMO_TXT(sub), '2026-10-20')
+  ok(`메모 줄 '${sub}': 3건만 (메모·잔액은 기록 아님)`, m.length === 3 && !m.some((x) => /축제/.test(x.store)) && m[0].amount === 18500, show(m))
+}
+ok('메모 줄: 잔액 맞춰 보기 그대로 (고친 것 없음)', parseCapture(MEMO_TXT('10:30 | 동네버거축제'), '2026-10-20').every((x) => !x.fixed))
+
 // '원' 이 숫자로 읽힌 경우
 const wn = (l) => findAmounts(l).map((a) => a.sign + a.value).join()
 ok("'+5009' → +500", wn('카드 캐시백 +5009') === '+500')

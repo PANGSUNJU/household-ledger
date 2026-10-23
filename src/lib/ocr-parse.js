@@ -214,6 +214,12 @@ function captureItems(text, today, needDate) {
       if (waiting && waiting.balance == null && hasTime(l)) waiting.balance = a.value
       continue
     }
+    // 은행 앱: 시간으로 시작하는 부호 없는 금액 줄 = 바로 위 기록의 잔액 (시간 옆 글자는 메모)
+    //  · 토스: '10:30 | 동네버거축제   57,069원' — 메모를 가게 이름으로, 잔액을 금액으로 읽지 않게
+    if (bankStyle && !a.sign && waiting && waiting.balance == null && STARTS_TIME.test(l)) {
+      waiting.balance = a.value
+      continue
+    }
     // 첫 날짜 머리글 위쪽: 계좌 잔액·카드 이름 등은 빼고, 이름 있는 기록만 '날짜 확인'으로
     let noDate = false
     if (needDate && !curDate) {
@@ -282,6 +288,8 @@ export function fixByBalance(items) {
 }
 
 /** 시간(18:43)이 들어 있는 줄인지 */
+/** 줄이 시간으로 시작 (앞의 아이콘 찌꺼기 한두 글자는 무시) */
+const STARTS_TIME = /^\s*[^\s가-힣A-Za-z0-9]{0,2}\s*\d{1,2}:\d{2}(?!\d)/
 function hasTime(l) { return /(?<!\d)\d{1,2}:\d{2}(?!\d)/.test(l) }
 
 /** 아래쪽에 날짜 머리글이 있는지 (위가 잘린 목록인지) */
