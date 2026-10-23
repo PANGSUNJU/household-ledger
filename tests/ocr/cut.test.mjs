@@ -27,6 +27,17 @@ for (const dark of [false, true]) {
   const sizes = cuts.slice(1).map((c, k) => c - cuts[k])
   ok(`${label}: 조각 높이가 너무 크거나 작지 않음`, sizes.every((h) => h > piece * 0.6 && h < piece * 1.9), sizes.join())
 }
+// 앱 ML Kit: 폭의 1배 높이로 잘게 (길쭉한 조각은 ML Kit 가 줄여서 글자를 놓침)
+{
+  const ah = 1000, ratio = 9, sh = ah * ratio, piece = 1080 * 1
+  const { d, aw, text } = fake(ah)
+  const cuts = pickCuts(d, aw, ah, ratio, sh, piece)
+  const inner = cuts.slice(1, -1), sizes = cuts.slice(1).map((c, k) => c - cuts[k])
+  ok('ML Kit 조각: 1080×9000 → 7조각 이상', cuts.length >= 8, cuts.join())
+  ok('ML Kit 조각: 빈 줄에서만 자름', inner.every((c) => !text(Math.round(c / ratio))), inner.map((c) => Math.round(c / ratio)).join())
+  ok('ML Kit 조각: 높이 650~2000', sizes.every((h) => h > 650 && h < 2000), sizes.join())
+  ok('ML Kit 조각: 보통 캡처(1080×2340)도 2조각 이상', pickCuts(fake(260).d, 120, 260, 9, 2340, 1080).length >= 3)
+}
 // 보통 캡처(폰 한 화면)는 자르지 않음
 const short = fake(260)
 ok('보통 캡처(1080×2340)는 한 조각', pickCuts(short.d, 120, 260, 9, 2340, 2700).length === 2)

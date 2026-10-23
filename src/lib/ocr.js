@@ -11,6 +11,7 @@ import { pickCuts } from './ocr-cut'
 import { flatLines, amountBox, cleanReread, replaceAmount, pickAmount, dateBox, cleanDate, replaceDate } from './ocr-amount'
 
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+export const MLKIT_PIECE = 1
 let workerPromise = null
 let progressFn = null
 
@@ -51,7 +52,7 @@ async function decode(file) {
   }
 }
 
-async function prepare(file, crop) {
+async function prepare(file, crop, pieceRatio = 2.5) {
   const bmp = await decode(file)
   try {
     // 고른 영역만 (비율 → 픽셀)
@@ -60,7 +61,7 @@ async function prepare(file, crop) {
     const sw = Math.max(1, Math.round(c.w * bmp.width)), sh = Math.max(1, Math.round(c.h * bmp.height))
     // 길게 이어 찍은 캡처: 통째로 줄이면 글자가 너무 작아져서 못 읽는다
     // → 기록 사이 빈 줄에서 여러 조각으로 잘라 조각마다 보통 크기로 읽는다
-    const cuts = cutPoints(bmp, sx, sy, sw, sh)
+    const cuts = cutPoints(bmp, sx, sy, sw, sh, pieceRatio)
     const pieces = []
     for (let k = 0; k < cuts.length - 1; k++) pieces.push(drawPiece(bmp, sx, sy + cuts[k], sw, cuts[k + 1] - cuts[k], !!crop))
     return pieces
@@ -90,8 +91,8 @@ function drawPiece(bmp, sx, sy, sw, sh, padded) {
  * 긴 캡처를 자를 자리 (조각 시작·끝 y, 원본 픽셀). 보통 캡처는 [0, sh] 한 조각
  * 조각 높이는 폭의 약 2.5배(폰 한 화면쯤). 그 근처에서 글자가 없는 가로줄(빈 줄)을 찾아 자른다
  */
-export function cutPoints(bmp, sx, sy, sw, sh) {
-  const piece = Math.round(sw * 2.5)
+export function cutPoints(bmp, sx, sy, sw, sh, pieceRatio = 2.5) {
+  const piece = Math.round(sw * pieceRatio)
   if (sh <= piece * 1.4) return [0, sh]
   // 작게 줄인 그림으로 가로줄마다 '글자가 있는지' 본다 (폭 120px, 세로는 원본 1/ratio)
   const aw = 120, ratio = sw / aw
@@ -141,7 +142,8 @@ export async function readImageInfo(file, onProgress, crop = null, opts = {}) {
   if (isNative() && !opts.tesseract) {
     try {
       const { mlkitRead } = await import('./ocr-mlkit')
-      const pieces = await prepare(file, crop)
+      // ML Kit 는 길쭉한 그림을 안에서 작게 줄여 읽어서 글자를 놓친다 → 폰 화면 반쯤(폭의 1배) 높이로 잘게 자른다
+      const pieces = await prepare(file, crop, MLKIT_PIECE)
       const texts = []
       for (let k = 0; k < pieces.length; k++) {
         onProgress?.({ stage: 'read', pct: pieces.length > 1 ? Math.round(k / pieces.length * 100) : null })
@@ -166,7 +168,10 @@ async function readTesseract(file, onProgress, crop = null) {
     else onProgress({ stage: 'load', pct: Math.round((m.progress || 0) * 100) })
   }
   try {
-    const [worker, pieces] = await Promise.all([getWorker(), prepare(file, crop)])
+    const wp = isNative()
+      ? Promise.race([getWorker(), new Promise((_, reject) => setTimeout(() => { workerPromise = null; reject(new Error('읽기 도구 준비 응답 없음')) }, 90000))])
+      : getWorker()
+    const [worker, pieces] = await Promise.all([wp, prepare(file, crop)])
     // 조각이 여럿이면 차례로 읽어 이어 붙인다 (진행률은 전체 기준으로)
     const texts = []
     for (let k = 0; k < pieces.length; k++) {
