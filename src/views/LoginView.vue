@@ -36,6 +36,7 @@
 
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p class="note">카카오·구글은 서로 다른 가계부예요</p>
+      <p class="note"><a href="/privacy.html">개인정보처리방침</a></p>
     </div>
   </main>
 </template>

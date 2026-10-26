@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가계부 앱 개인정보처리방침</title>
+<style>
+  :root { --bg: #FFFBF7; --text: #2B2320; --sub: #6E625C; --line: #EDE3DB; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1E1A18; --text: #F3ECE7; --sub: #B5A9A2; --line: #3A322E; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.7 system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .sub { color: var(--sub); font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+<p class="sub"><a href="/" onclick="if (history.length > 1) { history.back(); return false }">← 가계부 앱으로</a></p>
+<h1>가계부 앱 개인정보처리방침</h1>
+<p class="sub">시행일: 2026년 10월 26일</p>
+
+<p>팡이(이하 '운영자')는 '가계부 앱'(이하 '앱')을 운영하며, 이용자의 개인정보를 아래와 같이 처리합니다.</p>
+
+<h2>1. 처리하는 개인정보</h2>
+<table>
+  <tr><th>항목</th><th>내용</th><th>언제</th></tr>
+  <tr><td>계정 정보</td><td>로그인 방식(카카오·구글), 이메일, 이름 또는 닉네임, 계정 식별값</td><td>로그인할 때 카카오·구글에서 받음</td></tr>
+  <tr><td>가계부 기록</td><td>날짜, 금액, 가게 이름, 메모, 분류, 결제수단 이름, 고정 수입·지출, 예산, 가게 이름 고친 기록, 자주 쓰는 내역</td><td>이용자가 입력하거나 저장할 때</td></tr>
+  <tr><td>설정</td><td>화면 잠금 사용 여부와 비밀번호(복원할 수 없게 바꾼 값), 주간 알림 요일·시간</td><td>설정을 바꿀 때</td></tr>
+  <tr><td>알림 정보</td><td>알림을 받을 기기 주소와 기기 종류(예: Android Chrome)</td><td>폰 알림을 켤 때만</td></tr>
+</table>
+<p><strong>영수증·캡처 이미지는 서버로 보내지 않습니다.</strong> 이미지 속 글자는 이용자의 기기 안에서 읽고, 이용자가 확인해 저장한 날짜·금액·가게 이름만 기록으로 저장합니다.</p>
+<p>앱은 카드사·은행 계정 정보, 카드 번호, 계좌 번호를 요구하거나 수집하지 않습니다.</p>
+
+<h2>2. 이용 목적</h2>
+<p>가계부 기록 저장과 조회, 통계 표시, 이용자가 켠 알림 보내기, 로그인 유지에만 사용합니다. 광고나 마케팅에 쓰지 않고, 다른 곳에 팔지 않습니다.</p>
+
+<h2>3. 보관 기간</h2>
+<p>이용자가 계정을 삭제할 때까지 보관합니다. 계정을 삭제하면 위 정보가 모두 즉시 지워집니다.</p>
+
+<h2>4. 처리를 맡기는 곳 (위탁)</h2>
+<table>
+  <tr><th>업체</th><th>맡기는 일</th></tr>
+  <tr><td>Supabase Inc.</td><td>계정과 가계부 기록 저장(데이터베이스), 로그인 처리</td></tr>
+  <tr><td>Cloudflare, Inc.</td><td>앱 화면 파일 전송</td></tr>
+  <tr><td>카카오, Google</td><td>소셜 로그인</td></tr>
+</table>
+<p>Supabase 데이터베이스 위치: 대한민국 서울 (AWS ap-northeast-2)</p>
+
+<h2 id="delete">5. 계정과 데이터 삭제</h2>
+<p><strong>앱에서:</strong> 설정 → 계정 삭제 → '삭제' 입력 → 계정 삭제하기. 계정과 모든 기록이 즉시 지워지며 되돌릴 수 없습니다.</p>
+<p><strong>앱을 쓸 수 없을 때:</strong> 아래 연락처로 로그인에 쓴 계정(카카오·구글)과 이메일을 적어 삭제를 요청하면, 본인 확인 뒤 7일 안에 지웁니다.</p>
+<p>삭제 전에 설정 → CSV로 내보내기로 기록을 받아 둘 수 있습니다.</p>
+
+<h2>6. 이용자의 권리</h2>
+<p>이용자는 언제든 자신의 기록을 앱에서 보고, 고치고, 지우고, CSV로 내려받을 수 있습니다. 그 밖의 열람·정정·삭제·처리 정지 요청은 아래 연락처로 하면 됩니다.</p>
+
+<h2>7. 안전 조치</h2>
+<p>모든 통신은 HTTPS로 암호화합니다. 데이터베이스는 행 단위 보안 규칙으로 본인 기록만 읽고 쓸 수 있게 막아 둡니다. 화면 잠금 비밀번호는 복원할 수 없는 값으로 바꿔 저장합니다.</p>
+
+<h2>8. 아동</h2>
+<p>앱은 만 14세 미만 아동을 대상으로 하지 않습니다.</p>
+
+<h2>9. 개인정보 보호책임자·연락처</h2>
+<p>팡이 · pang7163y@gmail.com</p>
+
+<h2>10. 바뀔 때</h2>
+<p>이 방침이 바뀌면 시행 7일 전에 이 페이지에 알립니다.</p>
+</main>
+</body>
+</html>

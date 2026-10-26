@@ -149,8 +149,24 @@
     </section>
 
     <section class="card menu" aria-label="기타">
+      <!-- 라우터가 아닌 정적 파일이라 router-link 가 아니라 a (앱에서는 APK 안의 같은 파일을 연다) -->
+      <a href="/privacy.html" class="row">개인정보처리방침</a>
       <button type="button" class="row logout" @click="logout">로그아웃</button>
+      <button type="button" class="row logout" @click="del.open = true">계정 삭제</button>
     </section>
+
+    <!-- 계정 삭제: 되돌릴 수 없어서 '삭제'를 직접 입력해야 진행 -->
+    <BottomSheet :open="del.open" title="계정 삭제" @close="del.open = false">
+      <div class="sheet-body">
+        <p>계정과 모든 기록(내역·분류·결제수단·고정 항목·예산·알림 설정)이 바로 지워지고 되돌릴 수 없어요.</p>
+        <p class="muted small">필요하면 먼저 'CSV로 내보내기'로 기록을 받아 두세요.</p>
+        <input v-model="del.text" type="text" placeholder="삭제" aria-label="확인을 위해 삭제라고 입력" autocomplete="off">
+        <p v-if="del.msg" class="small lock-error" role="alert">{{ del.msg }}</p>
+        <button type="button" class="btn-primary danger" :disabled="del.busy || del.text.trim() !== '삭제'" @click="deleteAccount">
+          {{ del.busy ? '지우는 중…' : '계정 삭제하기' }}
+        </button>
+      </div>
+    </BottomSheet>
 
     <!-- CSV 내보내기 -->
     <BottomSheet :open="csv.open" title="CSV로 내보내기" @close="csv.open = false">
@@ -188,7 +204,7 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import PinPad from '@/components/PinPad.vue'
 import { auth, signOut, PROVIDER_LABEL } from '@/lib/auth'
 import { lock, TIMEOUTS } from '@/lib/lock'
-import { setLockPin, disableLock, setLockTimeout, listTransactions, getRemindSettings, saveRemindSettings } from '@/lib/api'
+import { setLockPin, disableLock, setLockTimeout, listTransactions, getRemindSettings, saveRemindSettings, deleteMyAccount, isMissingSetup } from '@/lib/api'
 import { WEEKDAYS, buildIcs, googleCalendarUrl } from '@/lib/remind'
 import { pwa, isIos, isStandalone, promptInstall, pushSupport, currentSubscription, enablePush, disablePush, sendTestPush } from '@/lib/pwa'
 import { toCsv, downloadText } from '@/lib/csv'
@@ -204,6 +220,7 @@ export default {
       push: { state: pushSupport(), on: false, device: '', busy: false, msg: '', err: false },
       CSV_RANGES: [{ v: 'month', t: '이번 달' }, { v: 'year', t: '올해' }, { v: 'all', t: '전체' }, { v: 'custom', t: '직접 선택' }],
       csv: { open: false, kind: 'month', from: '', to: '', busy: false, msg: '', err: false },
+      del: { open: false, text: '', busy: false, msg: '' },
       pinSheet: false, pinStep: 1, firstPin: '', pinError: '',
       menu: [
         { to: '/settings/recurring', label: '고정 수입·지출', icon: 'repeat', bg: '#E9E3FA', fg: '#4F3F86' },
@@ -442,6 +459,21 @@ export default {
     async logout() {
       await signOut()
       this.$router.replace({ name: 'login' })
+    },
+    async deleteAccount() {
+      this.del.busy = true; this.del.msg = ''
+      try {
+        await deleteMyAccount()
+      } catch (e) {
+        this.del.msg = isMissingSetup(e)
+          ? '계정 삭제를 쓰려면 Supabase에서 0010_delete_my_account.sql을 실행해 주세요.'
+          : '지우지 못했어요. 인터넷 연결을 확인하고 다시 해 주세요.'
+        console.warn('계정 삭제 실패', e)
+        this.del.busy = false
+        return
+      }
+      // 서버에서 계정이 지워졌으니 이 기기의 로그인 정보도 지운다
+      await this.logout()
     }
   }
 }
@@ -471,6 +503,7 @@ export default {
 .chev { color: #B8A69C; }
 .small { font-size: 12px; }
 .logout { border: 0; background: transparent; text-align: left; color: var(--expense); width: 100%; }
+.btn-primary.danger { background: var(--expense); }
 .two-line { display: flex; flex-direction: column; }
 .native-notify { flex-direction: column; align-items: stretch; gap: 8px; }
 .tiny-state { margin: 0; font-size: 11px; color: var(--text-faint); }
