@@ -20,3 +20,6 @@ signing-key-info.txt
 
 .court
 
+
+# 실제 캡처 원본 (로컬에서만, 공개 저장소에 올리지 않음)
+tests/ocr/private/

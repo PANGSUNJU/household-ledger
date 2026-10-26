@@ -13,6 +13,7 @@
     "prebuild": "node scripts/copy-ocr-assets.mjs",
     "test:ocr": "node scripts/copy-ocr-assets.mjs && node tests/ocr/ocr.test.mjs && node tests/ocr/cut.test.mjs && node tests/ocr/amount.test.mjs && node tests/ocr/mlkit.test.mjs && node tests/ocr/mlkit-real.test.mjs",
     "test:push": "node tests/push/send-reminders.test.mjs",
+    "test:ocr:private": "node tests/ocr/private/real.test.mjs",
     "test:app": "node tests/native.test.mjs && node tests/app-notify.test.mjs"
   },
   "dependencies": {
