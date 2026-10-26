@@ -283,6 +283,11 @@ export async function disableLock() {
   return check(await supabase.rpc('disable_lock'))
 }
 
+/** 본인 계정과 모든 기록을 지운다 (SQL 0010). 되돌릴 수 없음 */
+export async function deleteMyAccount() {
+  return check(await supabase.rpc('delete_my_account'))
+}
+
 export async function setLockTimeout(seconds) {
   return check(await supabase.from('user_settings').update({ lock_timeout: seconds }).not('user_id', 'is', null))
 }

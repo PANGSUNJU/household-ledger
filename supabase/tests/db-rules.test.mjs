@@ -269,5 +269,16 @@ ok('0009: 다른 계정 분류는 그대로', (await db.query(`select count(*)::
 await db.exec(migrations[8])
 ok('0009: 다시 실행해도 괜찮음', true)
 
+// 0010: 앱에서 본인 계정 삭제
+const C = '33333333-3333-3333-3333-333333333333'
+await expectError('0010: 로그인 안 하면 계정 삭제 막힘', '', `select delete_my_account()`)
+await as(C, `select delete_my_account()`)
+await db.exec('reset role')
+ok('0010: 본인 계정 지워짐', (await db.query(`select count(*)::int c from auth.users where id=$1`, [C])).rows[0].c === 0)
+ok('0010: 본인 분류도 같이 지워짐', (await db.query(`select count(*)::int c from categories where user_id=$1`, [C])).rows[0].c === 0)
+ok('0010: 다른 계정은 그대로', (await db.query(`select count(*)::int c from auth.users where id=$1`, [B])).rows[0].c === 1)
+await db.exec(migrations[9])
+ok('0010: 다시 실행해도 괜찮음', true)
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

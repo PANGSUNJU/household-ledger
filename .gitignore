@@ -17,3 +17,6 @@ public/ocr/
 signing-key-info.txt
 *.apk
 *.aab
+
+.court
+
