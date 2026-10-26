@@ -215,7 +215,7 @@ function captureItems(text, today, needDate) {
       continue
     }
     // 은행 앱: 시간으로 시작하는 부호 없는 금액 줄 = 바로 위 기록의 잔액 (시간 옆 글자는 메모)
-    //  · 토스: '10:30 | 동네버거축제   57,069원' — 메모를 가게 이름으로, 잔액을 금액으로 읽지 않게
+    //  · 토스: '10:30 | 동네버거축제   50,000원' — 메모를 가게 이름으로, 잔액을 금액으로 읽지 않게
     if (bankStyle && !a.sign && waiting && waiting.balance == null && STARTS_TIME.test(l)) {
       waiting.balance = a.value
       continue
